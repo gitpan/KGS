@@ -22,7 +22,7 @@
 </head>
 <body>
 
-<h1>$Revision: 1.54 $</h1>
+<h1>$Revision: 1.67 $</h1>
 
 <h1>KGS Protocol Description</h1>
 
@@ -48,10 +48,9 @@
    it.</p>
 
    <p>The current version of this document can always be found at 
-   <a href="http://cvs.sourceforge.net/cgi-bin/viewcvs.cgi/*checkout*/kgsueme/kgsueme/doc/protocol.xml?rev=HEAD&amp;content-type=text/xml">here</a>, while
+   <a href="http://cvs.schmorp.de/browse/*checkout*/kgsueme/doc/protocol.xml">here</a>, while
    the HTML version of it can be found
-   <a href="http://cvs.sourceforge.net/cgi-bin/viewcvs.cgi/*checkout*/kgsueme/kgsueme/doc/protocol.html?rev=HEAD&amp;content-type=text/html">here</a>.
-   (update: sourceforge is weeks behind on their anonymous cvs servers so the above might be out-of-date. sorry.)</p>
+   <a href="http://cvs.schmorp.de/browse/*checkout*/kgsueme/doc/protocol.html">here</a>.</p>
 
 <h2>Structure and conventions of this document and the protocol</h2>
 
@@ -238,6 +237,14 @@
    plaintext!): <code>password = 0; for char in characters do password ←
    password * 1055 + ascii_code (char)</code>
     </p>
+
+   <h4>TYPE CLIENTID16</h4>
+   BASE TYPE U16, LENGTH , MULTIPLIER 1<br />
+   <h4>TYPE CLIENTID8</h4>
+   BASE TYPE U8, LENGTH , MULTIPLIER 1<br />
+
+   <p>An id chosen by the client, usually starting at one, to identify
+   some handshakes initiated by the client, such as new games or memos.</p>
 
 <h2>Enumeration and set types used in the protocol.</h2>
 
@@ -748,7 +755,20 @@
         <td></td>
         <td>1 </td>
         <td>
-   
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>NONE</td>
+        <td></td>
+        <td>2 </td>
+        <td>
+      
             
        </td>
         <td>
@@ -986,7 +1006,7 @@
       <tr>
         <td>ver_micro</td>
         <td>U32</td>
-        <td>0 </td>
+        <td>1 </td>
         <td>
       
             
@@ -1328,7 +1348,7 @@
       <a name="C001d"></a>ORIGIN: CLIENT;
       MESSAGE: ping</h4>
    NUMERIC TYPE (hex): 001d<p>
-      <p>Wild guess, I send it in <a href="#S0016">idle_warn(0016)</a>.</p>
+      <p>No idea. Not used anymore?</p>
     </p>
     <table border="1" width="100%">
       <tr>
@@ -1366,23 +1386,6 @@
           <b></b> 
             
        </td>
-      </tr>
-    </table>
-
-   <h4>
-      <a name="C001f"></a>ORIGIN: CLIENT;
-      MESSAGE: fetch_memos</h4>
-   NUMERIC TYPE (hex): 001f<p>
-      <p>Unclear. Fetch all outstanding memos? Replied with <a href="#S001f">memo(001f)</a>
-      </p>
-    </p>
-    <table border="1" width="100%">
-      <tr>
-        <th width="10%">NAME</th>
-        <th width="8%">TYPE</th>
-        <th width="4%">VALUE</th>
-        <th>DESCRIPTION</th>
-        <th width="10%">GUARD</th>
       </tr>
     </table>
 
@@ -1486,6 +1489,19 @@
        </td>
       </tr>
       <tr>
+        <td>cid</td>
+        <td>CLIENTID16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
         <td>msg</td>
         <td>STRING</td>
         <td> </td>
@@ -1497,6 +1513,22 @@
           <b></b> 
             
        </td>
+      </tr>
+    </table>
+
+   <h4>
+      <a name="C0024"></a>ORIGIN: CLIENT;
+      MESSAGE: delete_memos</h4>
+   NUMERIC TYPE (hex): 0024<p>
+      <p>Unconditionally deletes all memos.</p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
       </tr>
     </table>
 
@@ -1974,11 +2006,7 @@
       <a name="C4305"></a>ORIGIN: CLIENT;
       MESSAGE: new_game</h4>
    NUMERIC TYPE (hex): 4305<p>
-      <p>Unclear. Start a new game.
-      <p>Clone: 00000: 20202020 20202020 20202020 20203238                28
-      00010: 9d000543 0d000000 00000000 00130201  ...C............
-      00020: 0000ffff ffffffff ffffffff 00000000  ..ÿÿÿÿÿÿÿÿÿÿ....</p>
-      </p>
+      <p>Create a new game.</p>
     </p>
     <table border="1" width="100%">
       <tr>
@@ -2002,8 +2030,8 @@
        </td>
       </tr>
       <tr>
-        <td>id</td>
-        <td>U16</td>
+        <td>cid</td>
+        <td>CLIENTID16</td>
         <td> </td>
         <td>
       
@@ -2015,7 +2043,7 @@
        </td>
       </tr>
       <tr>
-        <td>type</td>
+        <td>gametype</td>
         <td>U8</td>
         <td> </td>
         <td>
@@ -2204,10 +2232,10 @@
 
    <h4>
       <a name="C4400"></a>ORIGIN: CLIENT;
-      MESSAGE: send_challenge</h4>
+      MESSAGE: challenge</h4>
    NUMERIC TYPE (hex): 4400<p>
-      Unclear.
-      </p>
+      <p>Used to send challenges to existing games.</p>
+    </p>
     <table border="1" width="100%">
       <tr>
         <th width="10%">NAME</th>
@@ -2231,7 +2259,7 @@
       </tr>
       <tr>
         <td>black</td>
-        <td>username</td>
+        <td>user</td>
         <td> </td>
         <td>
       
@@ -2244,10 +2272,48 @@
       </tr>
       <tr>
         <td>white</td>
-        <td>username</td>
+        <td>user</td>
         <td> </td>
         <td>
-      More following... TREE or challenge.
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>gametype</td>
+        <td>U8</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>cid</td>
+        <td>CLIENTID8</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>rules</td>
+        <td>rules</td>
+        <td> </td>
+        <td>
    
             
        </td>
@@ -2389,11 +2455,10 @@
       <a name="C4406"></a>ORIGIN: CLIENT;
       MESSAGE: upd_tree</h4>
    NUMERIC TYPE (hex): 4406<p>
-      Upload a partial game tree to the server. This is used to send moves
+      <p>Upload a partial game tree to the server. This is used to send moves
       and even in-game comments to the server. For the comments, the
-      server prepends the username and rank.
-
-      </p>
+      server prepends the username and rank.</p>
+    </p>
     <table border="1" width="100%">
       <tr>
         <th width="10%">NAME</th>
@@ -2431,12 +2496,80 @@
     </table>
 
    <h4>
+      <a name="C4407"></a>ORIGIN: CLIENT;
+      MESSAGE: mark_dead</h4>
+   NUMERIC TYPE (hex): 4407<p>
+      <p>Marks stones ad dead (or alive?) by the client. Details unclear</p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>channel</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>x</td>
+        <td>U8</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>y</td>
+        <td>U8</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>dead</td>
+        <td>flag</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>
       <a name="C4408"></a>ORIGIN: CLIENT;
       MESSAGE: get_tree</h4>
    NUMERIC TYPE (hex): 4408<p>
-      Request the game tree starting at a given node. This is used
-      when the server only sends a partial tree (with end code "more").
-      </p>
+      <p>Request the game tree starting at a given node. This is used when
+      the server only sends a partial tree (with end code "more").</p>
+    </p>
     <table border="1" width="100%">
       <tr>
         <th width="10%">NAME</th>
@@ -2474,11 +2607,11 @@
     </table>
 
    <h4>
-      <a name="C440c"></a>ORIGIN: CLIENT;
-      MESSAGE: claim_win</h4>
-   NUMERIC TYPE (hex): 440c<p>
-      Unclear.
-      </p>
+      <a name="C440a"></a>ORIGIN: CLIENT;
+      MESSAGE: game_done</h4>
+   NUMERIC TYPE (hex): 440a<p>
+      <p>Sent by the client to mark the game as done.</p>
+    </p>
     <table border="1" width="100%">
       <tr>
         <th width="10%">NAME</th>
@@ -2501,11 +2634,52 @@
        </td>
       </tr>
       <tr>
-        <td>_byte</td>
+        <td>id</td>
+        <td>U32</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>
+      <a name="C440c"></a>ORIGIN: CLIENT;
+      MESSAGE: claim_win</h4>
+   NUMERIC TYPE (hex): 440c<p>
+      <p>Used by the client to claim a win.</p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>channel</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>player</td>
         <td>U8 </td>
         <td> </td>
         <td>
-      Player colour maybe? Unclear.
    
             
        </td>
@@ -2520,9 +2694,8 @@
       <a name="C440d"></a>ORIGIN: CLIENT;
       MESSAGE: add_time</h4>
    NUMERIC TYPE (hex): 440d<p>
-      Not checked.
-
-      </p>
+      <p>Adds the given amount of time to your opponent's clock.</p>
+    </p>
     <table border="1" width="100%">
       <tr>
         <th width="10%">NAME</th>
@@ -2560,6 +2733,34 @@
       <tr>
         <td>player</td>
         <td>U8</td>
+        <td> </td>
+        <td>
+   
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>
+      <a name="C440e"></a>ORIGIN: CLIENT;
+      MESSAGE: req_undo</h4>
+   NUMERIC TYPE (hex): 440e<p>
+      </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>channel</td>
+        <td>U16</td>
         <td> </td>
         <td>
    
@@ -2770,6 +2971,61 @@
       </tr>
       <tr>
         <td>private</td>
+        <td>flag</td>
+        <td> </td>
+        <td>
+   
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>
+      <a name="C4427"></a>ORIGIN: CLIENT;
+      MESSAGE: game_move</h4>
+   NUMERIC TYPE (hex): 4427<p>
+      <p>Only during playing, moves.</p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>channel</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>x</td>
+        <td>U8</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>y</td>
         <td>U8</td>
         <td> </td>
         <td>
@@ -2814,6 +3070,88 @@
       <tr>
         <td>name</td>
         <td>username</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>gametype</td>
+        <td>U8</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>cid</td>
+        <td>CLIENTID8</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>rules</td>
+        <td>rules</td>
+        <td> </td>
+        <td>
+   
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>
+      <a name="C442d"></a>ORIGIN: CLIENT;
+      MESSAGE: more_comments</h4>
+   NUMERIC TYPE (hex): 442d<p>
+      <p>Quite brokenly, the want this to send you more comments.
+      Reply to <a href="#S442d">more_comments(442d)</a>.</p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>channel</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>node</td>
+        <td>U32</td>
         <td> </td>
         <td>
    
@@ -2914,7 +3252,7 @@
       </tr>
       <tr>
         <td>quiet</td>
-        <td>U8</td>
+        <td>flag</td>
         <td> </td>
         <td>
    
@@ -3000,7 +3338,20 @@
       </tr>
       <tr>
         <td>gametype</td>
-        <td>U32</td>
+        <td>U8</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>ruleset</td>
+        <td>U8</td>
         <td> </td>
         <td>
       
@@ -3094,35 +3445,6 @@
         <td>U32</td>
         <td> </td>
         <td>
-   
-            
-       </td>
-        <td>
-          <b></b> 
-            
-       </td>
-      </tr>
-    </table>
-
-   <h4>STRUCTURE challenge</h4>
-      CLASS: KGS::Challenge<br />
-    <p>
-      A challenge.
-
-      </p>
-    <table border="1" width="100%">
-      <tr>
-        <th width="10%">NAME</th>
-        <th width="8%">TYPE</th>
-        <th width="4%">VALUE</th>
-        <th>DESCRIPTION</th>
-        <th width="10%">GUARD</th>
-      </tr>
-      <tr>
-        <td>user1</td>
-        <td>user</td>
-        <td> </td>
-        <td>
       
             
        </td>
@@ -3132,37 +3454,10 @@
        </td>
       </tr>
       <tr>
-        <td>user2</td>
-        <td>user</td>
+        <td>notes</td>
+        <td>STRING</td>
         <td> </td>
         <td>
-      
-            
-       </td>
-        <td>
-          <b></b> 
-            
-       </td>
-      </tr>
-      <tr>
-        <td>gametype</td>
-        <td>U32</td>
-        <td> </td>
-        <td>
-      
-            
-       </td>
-        <td>
-          <b></b> 
-            
-       </td>
-      </tr>
-      <tr>
-        <td>rules</td>
-        <td>rules</td>
-        <td> </td>
-        <td>
-      Maybe the rules" are in TREE format. I forgot.
    
             
        </td>
@@ -3216,7 +3511,7 @@
        </td>
       </tr>
       <tr>
-        <td>user1</td>
+        <td>black</td>
         <td>user</td>
         <td> </td>
         <td>
@@ -3230,7 +3525,7 @@
        </td>
       </tr>
       <tr>
-        <td>user2</td>
+        <td>white</td>
         <td>user</td>
         <td> </td>
         <td>
@@ -3244,7 +3539,7 @@
        </td>
       </tr>
       <tr>
-        <td>user3</td>
+        <td>owner</td>
         <td>user</td>
         <td> </td>
         <td>
@@ -3673,7 +3968,7 @@
        </td>
       </tr>
       <tr>
-        <td>user1</td>
+        <td>black</td>
         <td>user</td>
         <td> </td>
         <td>
@@ -3687,7 +3982,7 @@
        </td>
       </tr>
       <tr>
-        <td>user2</td>
+        <td>white</td>
         <td>user</td>
         <td> </td>
         <td>
@@ -3701,7 +3996,7 @@
        </td>
       </tr>
       <tr>
-        <td>user3</td>
+        <td>owner</td>
         <td>user</td>
         <td> </td>
         <td>
@@ -3966,7 +4261,7 @@
       <tr>
         <td>message</td>
         <td>CONSTANT</td>
-        <td>login failed: registered user of same name exists </td>
+        <td>login failed: user of same name logged in </td>
         <td>
    
             
@@ -4690,8 +4985,8 @@
          <a href="#C0016">idle_reset(0016)</a>
          )
       <p>
-      idle warning, autologout soon (10 minutes...)
-   </p>
+      <p>idle warning, autologout soon (10 minutes...). Responding with <a href="#S001d">ping(001d)</a> usually helps.</p>
+    </p>
     <table border="1" width="100%">
       <tr>
         <th width="10%">NAME</th>
@@ -4971,105 +5266,6 @@
     </table>
 
    <h4>
-      <a name="S001f"></a>ORIGIN: SERVER;
-      MESSAGE: memo</h4>
-   NUMERIC TYPE (hex): 001f
-         (possibly in response to
-         <a href="#C001f">fetch_memos(001f)</a>
-         )
-      <p>
-      Unclear. "Leave Message"?
-      6 strings following.
-      </p>
-    <table border="1" width="100%">
-      <tr>
-        <th width="10%">NAME</th>
-        <th width="8%">TYPE</th>
-        <th width="4%">VALUE</th>
-        <th>DESCRIPTION</th>
-        <th width="10%">GUARD</th>
-      </tr>
-      <tr>
-        <td>s1</td>
-        <td>ZSTRING</td>
-        <td> </td>
-        <td>
-      
-            
-       </td>
-        <td>
-          <b></b> 
-            
-       </td>
-      </tr>
-      <tr>
-        <td>s2</td>
-        <td>ZSTRING</td>
-        <td> </td>
-        <td>
-      
-            
-       </td>
-        <td>
-          <b></b> 
-            
-       </td>
-      </tr>
-      <tr>
-        <td>s3</td>
-        <td>ZSTRING</td>
-        <td> </td>
-        <td>
-      
-            
-       </td>
-        <td>
-          <b></b> 
-            
-       </td>
-      </tr>
-      <tr>
-        <td>s4</td>
-        <td>ZSTRING</td>
-        <td> </td>
-        <td>
-      
-            
-       </td>
-        <td>
-          <b></b> 
-            
-       </td>
-      </tr>
-      <tr>
-        <td>s5</td>
-        <td>ZSTRING</td>
-        <td> </td>
-        <td>
-      
-            
-       </td>
-        <td>
-          <b></b> 
-            
-       </td>
-      </tr>
-      <tr>
-        <td>s6</td>
-        <td>ZSTRING</td>
-        <td> </td>
-        <td>
-   
-            
-       </td>
-        <td>
-          <b></b> 
-            
-       </td>
-      </tr>
-    </table>
-
-   <h4>
       <a name="S0021"></a>ORIGIN: SERVER;
       MESSAGE: userpic</h4>
    NUMERIC TYPE (hex): 0021
@@ -5103,6 +5299,374 @@
       <tr>
         <td>data</td>
         <td>DATA</td>
+        <td> </td>
+        <td>
+   
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>
+      <a name="S0025"></a>ORIGIN: SERVER;
+      MESSAGE: memo_error</h4>
+   NUMERIC TYPE (hex): 0025<p>
+      <p>Account unknown.</p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>name</td>
+        <td>username</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>cid</td>
+        <td>CLIENTID16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>message</td>
+        <td>CONSTANT</td>
+        <td>memo send failed: account already exists </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>subtype</td>
+        <td>CONSTANT</td>
+        <td>25 </td>
+        <td>
+   
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>
+      <a name="S0026"></a>ORIGIN: SERVER;
+      MESSAGE: memo_error</h4>
+   NUMERIC TYPE (hex): 0026<p>
+      <p>Just a guess.</p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>name</td>
+        <td>username</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>cid</td>
+        <td>CLIENTID16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>message</td>
+        <td>CONSTANT</td>
+        <td>memo send failed: error 26 </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>subtype</td>
+        <td>CONSTANT</td>
+        <td>26 </td>
+        <td>
+   
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>
+      <a name="S0027"></a>ORIGIN: SERVER;
+      MESSAGE: memo_error</h4>
+   NUMERIC TYPE (hex): 0027<p>
+      <p>User is currently online, please use chat.</p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>name</td>
+        <td>username</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>cid</td>
+        <td>CLIENTID16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>message</td>
+        <td>CONSTANT</td>
+        <td>memo send failed: user is online, use chat </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>subtype</td>
+        <td>CONSTANT</td>
+        <td>27 </td>
+        <td>
+   
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>
+      <a name="S0028"></a>ORIGIN: SERVER;
+      MESSAGE: memo_error</h4>
+   NUMERIC TYPE (hex): 0028<p>
+      <p>Just a guess.</p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>name</td>
+        <td>username</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>cid</td>
+        <td>CLIENTID16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>message</td>
+        <td>CONSTANT</td>
+        <td>memo send failed: error 28 </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>subtype</td>
+        <td>CONSTANT</td>
+        <td>28 </td>
+        <td>
+   
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>
+      <a name="S0029"></a>ORIGIN: SERVER;
+      MESSAGE: memo</h4>
+   NUMERIC TYPE (hex): 0029<p>
+      </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>name</td>
+        <td>username</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>time</td>
+        <td>timestamp</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>message</td>
+        <td>ZSTRING</td>
+        <td> </td>
+        <td>
+   
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>
+      <a name="S002a"></a>ORIGIN: SERVER;
+      MESSAGE: memo_sent</h4>
+   NUMERIC TYPE (hex): 002a<p>
+      <p>The memo was sent successfully</p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>name</td>
+        <td>username</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>cid</td>
+        <td>CLIENTID16</td>
         <td> </td>
         <td>
    
@@ -5201,6 +5765,22 @@
           <b>event</b> == 2
             
        </td>
+      </tr>
+    </table>
+
+   <h4>
+      <a name="S030c"></a>ORIGIN: SERVER;
+      MESSAGE: unknown_030c</h4>
+   NUMERIC TYPE (hex): 030c<p>
+      <p>Not the slightest... No payload, either.</p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
       </tr>
     </table>
 
@@ -5312,9 +5892,9 @@
 
    <h4>
       <a name="S0412"></a>ORIGIN: SERVER;
-      MESSAGE: game_error</h4>
+      MESSAGE: already_playing</h4>
    NUMERIC TYPE (hex): 0412<p>
-      Unable to create challenge. The channel is be optional.
+      Unable to create new game.
       </p>
     <table border="1" width="100%">
       <tr>
@@ -5338,11 +5918,11 @@
        </td>
       </tr>
       <tr>
-        <td>channel</td>
-        <td>U16</td>
+        <td>cid</td>
+        <td>CLIENTID16</td>
         <td> </td>
         <td>
-   
+      
             
        </td>
         <td>
@@ -5657,7 +6237,7 @@
         <td>game</td>
         <td> </td>
         <td>
-   
+      
             
        </td>
         <td>
@@ -5939,7 +6519,7 @@
 
    <h4>
       <a name="S4400"></a>ORIGIN: SERVER;
-      MESSAGE: upd_challenge</h4>
+      MESSAGE: challenge</h4>
    NUMERIC TYPE (hex): 4400<p>
       Unclear.
       </p>
@@ -5965,11 +6545,76 @@
        </td>
       </tr>
       <tr>
-        <td>challenge</td>
-        <td>challenge</td>
+        <td>black</td>
+        <td>user</td>
         <td> </td>
         <td>
-   
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>white</td>
+        <td>user</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>gametype</td>
+        <td>U8</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>cid</td>
+        <td>CLIENTID8</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>rules</td>
+        <td>rules</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>notes</td>
+        <td>STRING</td>
+        <td> </td>
+        <td>
+      
             
        </td>
         <td>
@@ -6242,6 +6887,74 @@
     </table>
 
    <h4>
+      <a name="S440a"></a>ORIGIN: SERVER;
+      MESSAGE: game_done</h4>
+   NUMERIC TYPE (hex): 440a<p>
+      <p>Send by the server when one of the players sends a done.</p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>channel</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>id</td>
+        <td>U32</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>black</td>
+        <td>flag</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>white</td>
+        <td>flag</td>
+        <td> </td>
+        <td>
+   
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>
       <a name="S440b"></a>ORIGIN: SERVER;
       MESSAGE: final_result</h4>
    NUMERIC TYPE (hex): 440b<p>
@@ -6296,6 +7009,49 @@
     </table>
 
    <h4>
+      <a name="S440c"></a>ORIGIN: SERVER;
+      MESSAGE: out_of_time</h4>
+   NUMERIC TYPE (hex): 440c<p>
+      <p>Sent when the user is out of time and moves, or when the opponent
+      requests <a href="#S0008">userinfo(0008)</a>.</p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>channel</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>player</td>
+        <td>U8</td>
+        <td> </td>
+        <td>
+   
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>
       <a name="S440e"></a>ORIGIN: SERVER;
       MESSAGE: req_undo</h4>
    NUMERIC TYPE (hex): 440e<p>
@@ -6313,7 +7069,6 @@
         <td>U16</td>
         <td> </td>
         <td>
-
    
             
        </td>
@@ -6688,7 +7443,6 @@
       MESSAGE: reject_challenge</h4>
    NUMERIC TYPE (hex): 4429<p>
       Reject a challenge by a given user. Not checked.
-
       </p>
     <table border="1" width="100%">
       <tr>
@@ -6714,6 +7468,198 @@
       <tr>
         <td>name</td>
         <td>username</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>gametype</td>
+        <td>U8</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>cid</td>
+        <td>CLIENTID8</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>rules</td>
+        <td>rules</td>
+        <td> </td>
+        <td>
+   
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>
+      <a name="S442b"></a>ORIGIN: SERVER;
+      MESSAGE: set_comments</h4>
+   NUMERIC TYPE (hex): 442b<p>
+      <p>Sent at end of games to set the comments not seen previously.</p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>channel</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>node</td>
+        <td>U32</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>comments</td>
+        <td>STRING</td>
+        <td> </td>
+        <td>
+   
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>
+      <a name="S442c"></a>ORIGIN: SERVER;
+      MESSAGE: add_comments</h4>
+   NUMERIC TYPE (hex): 442c<p>
+      <p>Sent at end of games to add all game commentary.</p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>channel</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>node</td>
+        <td>U32</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>comments</td>
+        <td>STRING</td>
+        <td> </td>
+        <td>
+   
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>
+      <a name="S442d"></a>ORIGIN: SERVER;
+      MESSAGE: more_comments</h4>
+   NUMERIC TYPE (hex): 442d<p>
+      <p>Quite brokenly, the server sends you this to make you ask for more comments.
+      Reply with <a href="#S442d">more_comments(442d)</a>.</p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>channel</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>node</td>
+        <td>U32</td>
         <td> </td>
         <td>
    
@@ -6756,8 +7702,8 @@
        </td>
       </tr>
       <tr>
-        <td>id</td>
-        <td>U16</td>
+        <td>cid</td>
+        <td>CLIENTID16</td>
         <td> </td>
         <td>
       
@@ -6829,7 +7775,7 @@
       </tr>
       <tr>
         <td>quiet</td>
-        <td>U8</td>
+        <td>flag</td>
         <td> </td>
         <td>
    
@@ -6844,10 +7790,10 @@
 
    <h4>
       <a name="S4437"></a>ORIGIN: SERVER;
-      MESSAGE: set_endtime</h4>
+      MESSAGE: set_gametime</h4>
    NUMERIC TYPE (hex): 4437<p>
-      <p>Sent when joining a scored game (not when scoring). Probably
-      gives the remaining time + periods/moves for the players.</p>
+      <p>Sent when joining a running game. Gives the remaining time +
+      periods/moves for the players, to correctly initialize the clocks.</p>
     </p>
     <table border="1" width="100%">
       <tr>
@@ -6871,7 +7817,7 @@
        </td>
       </tr>
       <tr>
-        <td>btime</td>
+        <td>black_time</td>
         <td>time</td>
         <td> </td>
         <td>
@@ -6884,7 +7830,7 @@
        </td>
       </tr>
       <tr>
-        <td>bcount</td>
+        <td>black_moves</td>
         <td>U16</td>
         <td> </td>
         <td>
@@ -6897,7 +7843,7 @@
        </td>
       </tr>
       <tr>
-        <td>wtime</td>
+        <td>white_time</td>
         <td>time</td>
         <td> </td>
         <td>
@@ -6910,7 +7856,7 @@
        </td>
       </tr>
       <tr>
-        <td>wcount</td>
+        <td>white_moves</td>
         <td>U16</td>
         <td> </td>
         <td>

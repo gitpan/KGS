@@ -104,18 +104,26 @@ sub update_tree {
          }
 
       } elsif ($type eq "comment") {
-         $self->event_update_comments ($node, $arg[0], !exists $node->{comment});
+         if (!defined $arg[0]) {
+            delete $node->{comment};
+         } else {
+            $self->event_update_comments ($node, $arg[0], !exists $node->{comment});
+            $node->{comment} .= $arg[0];
+         }
 
-         $node->{comment} .= $arg[0];
+      } elsif ($type eq "set_timer") {
+         $up_tree = 1;#d#
+         $node->{timer}[$arg[0]] = [$arg[1], $arg[2]];
+
+      } elsif ($type eq "score") {
+         $up_tree = 1;
+         $node->{score}[$arg[0]] = $arg[1];
 
       } elsif ($type eq "player") {
          $node->{player}[$arg[0]] = $arg[1];
 
       } elsif ($type eq "rank") {
          $node->{rank}[$arg[0]] = $arg[1];
-
-      } elsif ($type eq "set_timer") {
-         $node->{timer}[$arg[0]] = [$arg[1], $arg[2]];
 
       } elsif ($type eq "more") {
          die;
@@ -153,6 +161,15 @@ sub get_path {
    }
 
    [reverse @nodes];
+}
+
+sub gen_move_tree {
+   my ($self, $colour, $x, $y) = @_;
+
+   [#d#
+      #NYI#
+      [add_node => 0],
+   ];
 }
 
 sub event_move            { }

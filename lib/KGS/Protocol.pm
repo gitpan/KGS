@@ -15,7 +15,7 @@ my $SGFHOST = "216.93.172.124";
 
 our $NOW; # the time the last packet was received
 
-our $VERSION = "0.3";
+our $VERSION = "0.4";
 
 sub MSG_CHANNEL() { 0x4000 }
 
@@ -56,7 +56,10 @@ sub decode_msg($) {
    my $msg = $KGS::Messages::dec_server{$type};
 
    if ($msg) {
-      $msg->($data);
+      # $msg->($data);
+      $msg = $msg->($data);
+      $msg->{DATA} = unpack "H*", $data;
+      $msg;
    } else {
       {
          type => (sprintf "%04x", $type),
@@ -168,7 +171,7 @@ sub feed_data {
 
    $NOW = Time::HiRes::time;
 
-   my ($data, $status) = $self->{zstream}->inflate($_[0]);
+   my ($data, $status) = $self->{zstream}->inflate ($_[0]);
    $status == Z_OK or croak "inflate: status is $status";
 
    $self->{rbuf} .= $data;
@@ -178,7 +181,7 @@ sub feed_data {
       if (delete $self->{rlen}) {
          #open XTYPE, "|xtype"; printf XTYPE "%16x", length($data); print XTYPE $data; close XTYPE;#d#
 
-         $self->_inject(decode_msg $self->{generator}->dec_server ($data));
+         $self->_inject (decode_msg $self->{generator}->dec_server ($data));
       } else {
          $self->{rlen} = (unpack "v", $data) - 2;
       }
@@ -213,17 +216,17 @@ sub _inject {
    }
 }
 
-=item alloc_channel
+=item alloc_clientid
 
 Create and return a new channel id, used e.g. for game creation. We start
 at one, but cgoban2 seems to start at zero.
 
 =cut
 
-sub alloc_channel {
+sub alloc_clientid() {
    my ($self) = @_;
 
-   ++$self->{channel_id};
+   ++$self->{clientid};
 }
 
 package KGS::User;
@@ -251,23 +254,24 @@ sub usertype     { $_[0]{flags} & 3 }
 
 sub is_valid    { length $_[0]{name} }
 
-sub rank {
+sub rank_number {
    $_[0]{flags} >> 24;
 }
 
-sub _rank {
-   $_[0] <= 0
+sub rank {
+   my $rank = $_[0]->rank_number;
+   $rank <= 0
       ? ""
-      : $_[0] <= 30
-         ? (31-$_[0]) . "k"
-         : $_[0] <= 39
-              ? ($_[0] - 30) . "d"
-              : ($_[0] - 39) . "p";
+      : $rank <= 30
+         ? (31-$rank) . "k"
+         : $rank <= 39
+              ? ($rank - 30) . "d"
+              : ($rank - 39) . "p";
 }
 
 sub rank_string {
    $_[0]->is_ranked
-      ? _rank($_[0]->rank) . ($_[0]->is_reliable ? "" : "?")
+      ? $_[0]->rank . ($_[0]->is_reliable ? "" : "?")
       : "-";
 }
 
@@ -279,7 +283,7 @@ sub flags_string {
 
    $r .= " (admin)" if &is_admin;
 
-   $r .= " (ranked bot)" if &usertype == 1;
+   $r .= " (child)" if &usertype == 1;
    $r .= " (teacher)" if &usertype == 2;
    $r .= " (ass)" if &usertype == 3;
 
@@ -314,13 +318,15 @@ sub is_inprogress { $_[0]{handicap} >= 0 } # maybe rename to "complete"? "starte
 
 sub is_private    { $_[0]{type} & 128 }
 
-sub is_active     {
-   &is_inprogress
-   && !&is_scored
-   && !&is_adjourned
-   && &type != GAMETYPE_DEMONSTRATION
-   # this is not enough, and probably not the right way to proceed (teacher flag?)
-} # clocks should be running?
+sub is_active {
+   &is_inprogress and !&is_scored;
+}
+
+sub player_colour {
+   $_[0]{black}{name} eq $_[1] ? COLOUR_BLACK
+   : $_[0]{white}{name} eq $_[1] ? COLOUR_WHITE
+   : COLOUR_NONE;
+}
 
 sub score {
    # due to the peculiar way score values are encoded, we keep special
@@ -347,16 +353,16 @@ sub type_char {
 }
 
 sub owner {
-   length $_[0]{user3}{name}
-      ? $_[0]{user3}
-      : $_[0]{user2};
+   length $_[0]{owner}{name}
+      ? $_[0]{owner}
+      : $_[0]{white};
 }
 
 sub opponent_string {
-   $_[0]{user3}{name} ?
-      $_[0]{user1}{name} eq $_[0]{user2}{name}
-         ? "" : "(".$_[0]{user2}->as_string." - ".$_[0]{user1}->as_string.")"
-      : "vs. ".$_[0]{user1}->as_string;
+   $_[0]{owner}{name} ?
+      $_[0]{black}{name} eq $_[0]{white}{name}
+         ? "" : "(".$_[0]{white}->as_string." - ".$_[0]{black}->as_string.")"
+      : "vs. ".$_[0]{black}->as_string;
 }
 
 sub size {
@@ -453,8 +459,8 @@ use base KGS::Game;
 sub revision {
    my ($self) = @_;
 
-   (($self->{user1}{flags} >> 16) & 0x00ff)
-   | (($self->{user2}{flags} >>  8) & 0xff00);
+   (($self->{black}{flags} >> 16) & 0x00ff)
+   | (($self->{white}{flags} >>  8) & 0xff00);
 }
 
 sub is_inplay {
@@ -493,9 +499,9 @@ sub uri {
 
    $revision = $self->revision;
 
-   my $p1 = $self->{user1}{name};
-   my $p2 = $self->{user2}{name};
-   my $p3 = $self->{user3}{name};
+   my $p1 = $self->{black}{name};
+   my $p2 = $self->{white}{name};
+   my $p3 = $self->{owner}{name};
 
    my ($year, $month, $day) = (gmtime $self->{timestamp})[5,4,3];
 

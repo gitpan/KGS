@@ -34,12 +34,13 @@ WriteMakefile(
     		    Gtk2		=> 0.90,
                     Audio::Data		=> 0,
                     Audio::Play		=> 0,
+                    Time::HiRes		=> 0,
 		   },
     DIR		=> [],
     NAME	=> 'KGS',
     linkext	=> { LINKTYPE => '' },
     VERSION_FROM => 'lib/KGS/Protocol.pm',
-    EXE_FILES	=> [qw(bin/kgsueme bin/kgstrace)],
+    EXE_FILES	=> [qw(bin/kgsueme bin/kgstrace bin/gtp-controller)], # not ready: kgs-igs
     PM		=> {
        'lib/Gtk2/GoBoard.pm'		=> '$(INST_LIBDIR)/Gtk2/GoBoard.pm',
        'lib/Gtk2/GoBoard/Constants.pm'	=> '$(INST_LIBDIR)/Gtk2/GoBoard/Constants.pm',
@@ -86,9 +87,9 @@ WriteMakefile(
        'sounds/ring'			=> '$(INST_LIBDIR)/KGS/kgsueme/sounds/ring',
        'sounds/user_unknown'		=> '$(INST_LIBDIR)/KGS/kgsueme/sounds/user_unknown',
        'sounds/warning'			=> '$(INST_LIBDIR)/KGS/kgsueme/sounds/warning',
+       'sounds/outoftime'		=> '$(INST_LIBDIR)/KGS/kgsueme/sounds/outoftime',
 
        'kgsueme/app.pl'			=> '$(INST_LIBDIR)/KGS/kgsueme/app.pl',
-       'kgsueme/challenge.pl'		=> '$(INST_LIBDIR)/KGS/kgsueme/challenge.pl',
        'kgsueme/chat.pl'		=> '$(INST_LIBDIR)/KGS/kgsueme/chat.pl',
        'kgsueme/superchat.pl'		=> '$(INST_LIBDIR)/KGS/kgsueme/superchat.pl',
        'kgsueme/game.pl'		=> '$(INST_LIBDIR)/KGS/kgsueme/game.pl',

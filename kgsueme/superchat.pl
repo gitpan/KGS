@@ -28,8 +28,10 @@ sub INIT_INSTANCE {
          [move        => { foreground => "#0000b0", event => 1 }],
          [user        => { foreground => "#0000b0", event => 1 }],
          [coord       => { foreground => "#0000b0", event => 1 }],
+         [score       => { foreground => "#0000b0", event => 1 }],
          [error       => { foreground => "#ff0000", event => 1 }],
          [header      => { weight => 800, pixels_above_lines => 6 }],
+         [undo        => { foreground => "#ffff00", background => "#ff0000", weight => 800, pixels_above_lines => 6 }],
          [challenge   => { weight => 800, pixels_above_lines => 6, background => "#ffffb0" }],
          [description => { weight => 800, foreground => "blue" }],
          [infoblock   => { weight => 700, foreground => "blue" }],
@@ -107,7 +109,8 @@ sub INIT_INSTANCE {
       $self->signal_emit (command => $cmd, $arg);
    });
 
-   $self->{end} = $self->{buffer}->create_mark (undef, $self->{buffer}->get_end_iter, 0);
+   #$self->{end} = $self->{buffer}->create_mark (undef, $self->{buffer}->get_end_iter, 0);#d##todo# use this one for gtk-1.050+
+   $self->{end} = $self->{buffer}->create_mark (++$USELESSNAME, $self->{buffer}->get_end_iter, 0); # workaround for gtk-perl bug
 
    $self->set_end;
 }
@@ -218,23 +221,24 @@ sub new_switchable_inlay {
 
       if ($event->type eq "button-press") {
          $inlay->set_visible (!$inlay->{visible});
+         return 1;
       }
 
-      1;
+      0;
    });
 
    $tag->set (background => "#e0e0ff");
 
    $inlay = $self->new_inlay;
 
-   $inlay->{visible} = 0;
+   $inlay->{visible} = $visible;
    $inlay->{header}  = $header;
    $inlay->{tag}     = $tag;
    $inlay->{cb}      = $cb;
 
    Scalar::Util::weaken $inlay->{tag};
 
-   $inlay->set_visible ($visible);
+   $inlay->refresh;
 
    $inlay;
 }
@@ -255,7 +259,81 @@ sub append_text {
    $self->{parent}->_append_text ($self->{r}, $text);
 }
 
+sub append_widget {
+   my ($self, $widget) = @_;
+
+   $widget->show_all;
+
+   my $anchor = $self->{buffer}->create_child_anchor ($self->riter);
+   $self->{parent}{view}->add_child_at_anchor ($widget, $anchor);
+}
+
+sub append_optionmenu {
+   my ($self, $ref, @entry) = @_;
+
+   my @vals;
+
+   my $widget = new Gtk2::OptionMenu;
+   $widget->set (menu => my $menu = new Gtk2::Menu);
+
+   my $idx = 0;
+
+   while (@entry >= 2) {
+      my $value = shift @entry;
+      my $label = shift @entry;
+
+      $menu->append (new Gtk2::MenuItem $label);
+      push @vals, $value;
+
+      if ($value eq $$ref && $idx >= 0) {
+         $widget->set_history ($idx);
+         $idx = -1e6;
+      }
+      $idx++;
+   }
+
+   my $cb = shift @entry;
+
+   $widget->signal_connect (changed => sub {
+      my $new = $vals[$_[0]->get_history];
+
+      if ($new ne $$ref) {
+         $$ref = $new;
+         $cb->($new) if $cb;
+      }
+   });
+
+   $self->append_widget ($widget);
+
+   $widget;
+}
+
+sub append_entry {
+   my ($self, $ref, $width, $cb) = @_;
+
+   my $widget = new Gtk2::Entry;
+   $widget->set (text => $$ref, width_chars => $width, xalign => 1);
+   $widget->signal_connect (changed => sub {
+      $$ref = $_[0]->get_text;
+      $cb->($$ref) if $cb;
+   });
+
+   $self->append_widget ($widget);
+   $widget;
+}
+
+sub append_button {
+   my ($self, $label, $cb) = @_;
+
+   my $widget = new_with_label Gtk2::Button $label;
+   $widget->signal_connect (clicked => sub { $cb->() if $cb });
+
+   $self->append_widget ($widget);
+   $widget;
+}
+
 sub visible { $_[0]{visible} }
+
 sub set_visible {
    my ($self, $visible) = @_;
 
@@ -280,10 +358,24 @@ sub refresh {
    $self->{cb}->($self);
 }
 
-sub DESTROY {
+sub destroy {
    my ($self) = @_;
 
-   $self->{parent}{tagtable}->remove (delete $self->{tag}) if $self->{tag};
+   return if !$self->{l} || !$self->{buffer} || $self->{l}->get_deleted;
+
+   $self->clear if $self->{buffer};
+
+   delete $self->{parent};
+   delete $self->{buffer};
+   delete $self->{l};
+   delete $self->{r};
+}
+
+sub DESTROY {
+   my $self = shift;
+
+   $self->{parent}{tagtable}->remove (delete $self->{tag}) if $self->{tag} && $self->{parent};
+   #&destroy;
 }
 
 1;

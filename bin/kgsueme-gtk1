@@ -1,5 +1,7 @@
 #!/usr/bin/perl
 
+# this is only of historic interest
+
 use Gtk;
 use Gtk::Gdk;
 use Gtk::Gdk::Pixbuf;

@@ -325,6 +325,22 @@ sub enc_timestamp {
    enc_U64 $_[0] * 1000;
 }
 
+sub dec_CLIENTID16 {
+   (1 / 1) * dec_U16;
+}
+
+sub enc_CLIENTID16 {
+   enc_U16 $_[0] * 1;
+}
+
+sub dec_CLIENTID8 {
+   (1 / 1) * dec_U8;
+}
+
+sub enc_CLIENTID8 {
+   enc_U8 $_[0] * 1;
+}
+
 
 #############################################################################
 # structures
@@ -392,7 +408,8 @@ sub enc_rules {
 sub dec_challenge_defaults {
    my $r = {};
    
-   $r->{gametype} = dec_U32 q||;
+   $r->{gametype} = dec_U8 q||;
+   $r->{ruleset} = dec_U8 q||;
    $r->{size} = dec_U32 q||;
    $r->{timesys} = dec_U32 q||;
    $r->{time} = dec_U32 q||;
@@ -400,12 +417,14 @@ sub dec_challenge_defaults {
    $r->{byo_periods} = dec_U32 q||;
    $r->{can_time} = dec_U32 q||;
    $r->{can_stones} = dec_U32 q||;
+   $r->{notes} = dec_STRING q||;
    $r;
 }
 
 sub enc_challenge_defaults {
    
-   enc_U32 defined $_[0]{gametype} ? $_[0]{gametype} : (q||);
+   enc_U8 defined $_[0]{gametype} ? $_[0]{gametype} : (q||);
+   enc_U8 defined $_[0]{ruleset} ? $_[0]{ruleset} : (q||);
    enc_U32 defined $_[0]{size} ? $_[0]{size} : (q||);
    enc_U32 defined $_[0]{timesys} ? $_[0]{timesys} : (q||);
    enc_U32 defined $_[0]{time} ? $_[0]{time} : (q||);
@@ -413,26 +432,7 @@ sub enc_challenge_defaults {
    enc_U32 defined $_[0]{byo_periods} ? $_[0]{byo_periods} : (q||);
    enc_U32 defined $_[0]{can_time} ? $_[0]{can_time} : (q||);
    enc_U32 defined $_[0]{can_stones} ? $_[0]{can_stones} : (q||);
-}
-
-sub dec_challenge {
-   my $r = {};
-   
-   $r->{user1} = dec_user q||;
-   $r->{user2} = dec_user q||;
-   $r->{gametype} = dec_U32 q||;
-   $r->{rules} = dec_rules q||;
-   bless $r, KGS::Challenge::;
-   
-   $r;
-}
-
-sub enc_challenge {
-   
-   enc_user defined $_[0]{user1} ? $_[0]{user1} : (q||);
-   enc_user defined $_[0]{user2} ? $_[0]{user2} : (q||);
-   enc_U32 defined $_[0]{gametype} ? $_[0]{gametype} : (q||);
-   enc_rules defined $_[0]{rules} ? $_[0]{rules} : (q||);
+   enc_STRING defined $_[0]{notes} ? $_[0]{notes} : (q||);
 }
 
 sub dec_game {
@@ -440,9 +440,9 @@ sub dec_game {
    
    $r->{channel} = dec_U16 q||;
    $r->{type} = dec_U8 q||;
-   $r->{user1} = dec_user q||;
-   $r->{user2} = dec_user q||;
-   $r->{user3} = dec_user q||;
+   $r->{black} = dec_user q||;
+   $r->{white} = dec_user q||;
+   $r->{owner} = dec_user q||;
    $r->{size} = dec_U8 q||;
    $r->{handicap} = dec_I8 q||;
    $r->{komi} = dec_komi16 q||;
@@ -461,9 +461,9 @@ sub enc_game {
    
    enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
    enc_U8 defined $_[0]{type} ? $_[0]{type} : (q||);
-   enc_user defined $_[0]{user1} ? $_[0]{user1} : (q||);
-   enc_user defined $_[0]{user2} ? $_[0]{user2} : (q||);
-   enc_user defined $_[0]{user3} ? $_[0]{user3} : (q||);
+   enc_user defined $_[0]{black} ? $_[0]{black} : (q||);
+   enc_user defined $_[0]{white} ? $_[0]{white} : (q||);
+   enc_user defined $_[0]{owner} ? $_[0]{owner} : (q||);
    enc_U8 defined $_[0]{size} ? $_[0]{size} : (q||);
    enc_I8 defined $_[0]{handicap} ? $_[0]{handicap} : (q||);
    enc_komi16 defined $_[0]{komi} ? $_[0]{komi} : (q||);
@@ -547,9 +547,9 @@ sub dec_game_record {
    
    $r->{timestamp} = dec_timestamp q||;
    $r->{flags1} = dec_U8 q||;
-   $r->{user1} = dec_user q||;
-   $r->{user2} = dec_user q||;
-   $r->{user3} = dec_user q||;
+   $r->{black} = dec_user q||;
+   $r->{white} = dec_user q||;
+   $r->{owner} = dec_user q||;
    $r->{flags2} = dec_U16 q||;
    $r->{score} = dec_score16 q||;
    $r->{flags3} = dec_U8 q||;
@@ -562,9 +562,9 @@ sub enc_game_record {
    
    enc_timestamp defined $_[0]{timestamp} ? $_[0]{timestamp} : (q||);
    enc_U8 defined $_[0]{flags1} ? $_[0]{flags1} : (q||);
-   enc_user defined $_[0]{user1} ? $_[0]{user1} : (q||);
-   enc_user defined $_[0]{user2} ? $_[0]{user2} : (q||);
-   enc_user defined $_[0]{user3} ? $_[0]{user3} : (q||);
+   enc_user defined $_[0]{black} ? $_[0]{black} : (q||);
+   enc_user defined $_[0]{white} ? $_[0]{white} : (q||);
+   enc_user defined $_[0]{owner} ? $_[0]{owner} : (q||);
    enc_U16 defined $_[0]{flags2} ? $_[0]{flags2} : (q||);
    enc_score16 defined $_[0]{score} ? $_[0]{score} : (q||);
    enc_U8 defined $_[0]{flags3} ? $_[0]{flags3} : (q||);
@@ -610,7 +610,8 @@ sub dec_TREE {
 
       } elsif ($type == 26) {
          push @r, [type_26 => dec_U8]; # sets a flag (?)
-         warn "unknown tree node 26, PLEASE REPORT AND INCLUDE THE GAME\n";
+         warn "unknown tree node 26, please ignore\n";
+         # possibly marks moves done while editing, as opposed to game-moves(?)
 
       } elsif ($type == 25) {
          push @r, [result => dec_result];
@@ -690,7 +691,7 @@ sub dec_TREE {
 
       }
 
-      push @{$r[-1]}, offset => sprintf "0x%x", $ofs;#d#
+      #push @{$r[-1]}, offset => sprintf "0x%x", $ofs;#d#
       
    }
 #         print STDERR KGS::Listener::Debug::dumpval(\@r);#d#
@@ -780,7 +781,7 @@ $dec_client{0x0000} = sub {
    
    $r->{ver_major} = dec_U32 q|2|;
    $r->{ver_minor} = dec_U32 q|6|;
-   $r->{ver_micro} = dec_U32 q|0|;
+   $r->{ver_micro} = dec_U32 q|1|;
    $r->{name} = dec_username q||;
    $r->{password} = dec_password q|0|;
    $r->{guest} = dec_flag q|1|;
@@ -795,7 +796,7 @@ $enc_client{login} = sub {
    
    enc_U32 defined $_[0]{ver_major} ? $_[0]{ver_major} : (q|2|);
    enc_U32 defined $_[0]{ver_minor} ? $_[0]{ver_minor} : (q|6|);
-   enc_U32 defined $_[0]{ver_micro} ? $_[0]{ver_micro} : (q|0|);
+   enc_U32 defined $_[0]{ver_micro} ? $_[0]{ver_micro} : (q|1|);
    enc_username defined $_[0]{name} ? $_[0]{name} : (q||);
    enc_password defined $_[0]{password} ? $_[0]{password} : (q|0|);
    enc_flag defined $_[0]{guest} ? $_[0]{guest} : (q|1|);
@@ -936,21 +937,6 @@ $enc_client{req_usergraph} = sub {
    $data;
 };
 
-# fetch_memos
-$dec_client{0x001f} = sub {
-   $data = $_[0];
-   my $r;
-   $r->{type} = "fetch_memos";
-   
-   $r;
-};
-$enc_client{fetch_memos} = sub {
-   $data = "";
-   enc_U16 0x001f;
-   
-   $data;
-};
-
 # req_pic
 $dec_client{0x0021} = sub {
    $data = $_[0];
@@ -994,6 +980,7 @@ $dec_client{0x0023} = sub {
    $r->{type} = "send_memo";
    
    $r->{name} = dec_username q||;
+   $r->{cid} = dec_CLIENTID16 q||;
    $r->{msg} = dec_STRING q||;
    $r;
 };
@@ -1002,7 +989,23 @@ $enc_client{send_memo} = sub {
    enc_U16 0x0023;
    
    enc_username defined $_[0]{name} ? $_[0]{name} : (q||);
+   enc_CLIENTID16 defined $_[0]{cid} ? $_[0]{cid} : (q||);
    enc_STRING defined $_[0]{msg} ? $_[0]{msg} : (q||);
+   $data;
+};
+
+# delete_memos
+$dec_client{0x0024} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "delete_memos";
+   
+   $r;
+};
+$enc_client{delete_memos} = sub {
+   $data = "";
+   enc_U16 0x0024;
+   
    $data;
 };
 
@@ -1209,8 +1212,8 @@ $dec_client{0x4305} = sub {
    $r->{type} = "new_game";
    
    $r->{channel} = dec_U16 q||;
-   $r->{id} = dec_U16 q||;
-   $r->{type} = dec_U8 q||;
+   $r->{cid} = dec_CLIENTID16 q||;
+   $r->{gametype} = dec_U8 q||;
    $r->{flags} = dec_U8 q||;
    $r->{rules} = dec_rules q||;
    $r->{notes} = dec_STRING q||;
@@ -1221,8 +1224,8 @@ $enc_client{new_game} = sub {
    enc_U16 0x4305;
    
    enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
-   enc_U16 defined $_[0]{id} ? $_[0]{id} : (q||);
-   enc_U8 defined $_[0]{type} ? $_[0]{type} : (q||);
+   enc_CLIENTID16 defined $_[0]{cid} ? $_[0]{cid} : (q||);
+   enc_U8 defined $_[0]{gametype} ? $_[0]{gametype} : (q||);
    enc_U8 defined $_[0]{flags} ? $_[0]{flags} : (q||);
    enc_rules defined $_[0]{rules} ? $_[0]{rules} : (q||);
    enc_STRING defined $_[0]{notes} ? $_[0]{notes} : (q||);
@@ -1286,24 +1289,30 @@ $enc_client{req_desc} = sub {
    $data;
 };
 
-# send_challenge
+# challenge
 $dec_client{0x4400} = sub {
    $data = $_[0];
    my $r;
-   $r->{type} = "send_challenge";
+   $r->{type} = "challenge";
    
    $r->{channel} = dec_U16 q||;
-   $r->{black} = dec_username q||;
-   $r->{white} = dec_username q||;
+   $r->{black} = dec_user q||;
+   $r->{white} = dec_user q||;
+   $r->{gametype} = dec_U8 q||;
+   $r->{cid} = dec_CLIENTID8 q||;
+   $r->{rules} = dec_rules q||;
    $r;
 };
-$enc_client{send_challenge} = sub {
+$enc_client{challenge} = sub {
    $data = "";
    enc_U16 0x4400;
    
    enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
-   enc_username defined $_[0]{black} ? $_[0]{black} : (q||);
-   enc_username defined $_[0]{white} ? $_[0]{white} : (q||);
+   enc_user defined $_[0]{black} ? $_[0]{black} : (q||);
+   enc_user defined $_[0]{white} ? $_[0]{white} : (q||);
+   enc_U8 defined $_[0]{gametype} ? $_[0]{gametype} : (q||);
+   enc_CLIENTID8 defined $_[0]{cid} ? $_[0]{cid} : (q||);
+   enc_rules defined $_[0]{rules} ? $_[0]{rules} : (q||);
    $data;
 };
 
@@ -1383,6 +1392,29 @@ $enc_client{upd_tree} = sub {
    $data;
 };
 
+# mark_dead
+$dec_client{0x4407} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "mark_dead";
+   
+   $r->{channel} = dec_U16 q||;
+   $r->{x} = dec_U8 q||;
+   $r->{y} = dec_U8 q||;
+   $r->{dead} = dec_flag q||;
+   $r;
+};
+$enc_client{mark_dead} = sub {
+   $data = "";
+   enc_U16 0x4407;
+   
+   enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
+   enc_U8 defined $_[0]{x} ? $_[0]{x} : (q||);
+   enc_U8 defined $_[0]{y} ? $_[0]{y} : (q||);
+   enc_flag defined $_[0]{dead} ? $_[0]{dead} : (q||);
+   $data;
+};
+
 # get_tree
 $dec_client{0x4408} = sub {
    $data = $_[0];
@@ -1402,6 +1434,25 @@ $enc_client{get_tree} = sub {
    $data;
 };
 
+# game_done
+$dec_client{0x440a} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "game_done";
+   
+   $r->{channel} = dec_U16 q||;
+   $r->{id} = dec_U32 q||;
+   $r;
+};
+$enc_client{game_done} = sub {
+   $data = "";
+   enc_U16 0x440a;
+   
+   enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
+   enc_U32 defined $_[0]{id} ? $_[0]{id} : (q||);
+   $data;
+};
+
 # claim_win
 $dec_client{0x440c} = sub {
    $data = $_[0];
@@ -1409,7 +1460,7 @@ $dec_client{0x440c} = sub {
    $r->{type} = "claim_win";
    
    $r->{channel} = dec_U16 q||;
-   $r->{_byte} = dec_U8  q||;
+   $r->{player} = dec_U8  q||;
    $r;
 };
 $enc_client{claim_win} = sub {
@@ -1417,7 +1468,7 @@ $enc_client{claim_win} = sub {
    enc_U16 0x440c;
    
    enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
-   enc_U8  defined $_[0]{_byte} ? $_[0]{_byte} : (q||);
+   enc_U8  defined $_[0]{player} ? $_[0]{player} : (q||);
    $data;
 };
 
@@ -1439,6 +1490,23 @@ $enc_client{add_time} = sub {
    enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
    enc_U32 defined $_[0]{time} ? $_[0]{time} : (q||);
    enc_U8 defined $_[0]{player} ? $_[0]{player} : (q||);
+   $data;
+};
+
+# req_undo
+$dec_client{0x440e} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "req_undo";
+   
+   $r->{channel} = dec_U16 q||;
+   $r;
+};
+$enc_client{req_undo} = sub {
+   $data = "";
+   enc_U16 0x440e;
+   
+   enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
    $data;
 };
 
@@ -1525,7 +1593,7 @@ $dec_client{0x4423} = sub {
    $r->{type} = "set_privacy";
    
    $r->{channel} = dec_U16 q||;
-   $r->{private} = dec_U8 q||;
+   $r->{private} = dec_flag q||;
    $r;
 };
 $enc_client{set_privacy} = sub {
@@ -1533,7 +1601,28 @@ $enc_client{set_privacy} = sub {
    enc_U16 0x4423;
    
    enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
-   enc_U8 defined $_[0]{private} ? $_[0]{private} : (q||);
+   enc_flag defined $_[0]{private} ? $_[0]{private} : (q||);
+   $data;
+};
+
+# game_move
+$dec_client{0x4427} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "game_move";
+   
+   $r->{channel} = dec_U16 q||;
+   $r->{x} = dec_U8 q||;
+   $r->{y} = dec_U8 q||;
+   $r;
+};
+$enc_client{game_move} = sub {
+   $data = "";
+   enc_U16 0x4427;
+   
+   enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
+   enc_U8 defined $_[0]{x} ? $_[0]{x} : (q||);
+   enc_U8 defined $_[0]{y} ? $_[0]{y} : (q||);
    $data;
 };
 
@@ -1545,6 +1634,9 @@ $dec_client{0x4429} = sub {
    
    $r->{channel} = dec_U16 q||;
    $r->{name} = dec_username q||;
+   $r->{gametype} = dec_U8 q||;
+   $r->{cid} = dec_CLIENTID8 q||;
+   $r->{rules} = dec_rules q||;
    $r;
 };
 $enc_client{reject_challenge} = sub {
@@ -1553,6 +1645,28 @@ $enc_client{reject_challenge} = sub {
    
    enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
    enc_username defined $_[0]{name} ? $_[0]{name} : (q||);
+   enc_U8 defined $_[0]{gametype} ? $_[0]{gametype} : (q||);
+   enc_CLIENTID8 defined $_[0]{cid} ? $_[0]{cid} : (q||);
+   enc_rules defined $_[0]{rules} ? $_[0]{rules} : (q||);
+   $data;
+};
+
+# more_comments
+$dec_client{0x442d} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "more_comments";
+   
+   $r->{channel} = dec_U16 q||;
+   $r->{node} = dec_U32 q||;
+   $r;
+};
+$enc_client{more_comments} = sub {
+   $data = "";
+   enc_U16 0x442d;
+   
+   enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
+   enc_U32 defined $_[0]{node} ? $_[0]{node} : (q||);
    $data;
 };
 
@@ -1597,7 +1711,7 @@ $dec_client{0x4434} = sub {
    $r->{type} = "set_quiet";
    
    $r->{channel} = dec_U16 q||;
-   $r->{quiet} = dec_U8 q||;
+   $r->{quiet} = dec_flag q||;
    $r;
 };
 $enc_client{set_quiet} = sub {
@@ -1605,7 +1719,7 @@ $enc_client{set_quiet} = sub {
    enc_U16 0x4434;
    
    enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
-   enc_U8 defined $_[0]{quiet} ? $_[0]{quiet} : (q||);
+   enc_flag defined $_[0]{quiet} ? $_[0]{quiet} : (q||);
    $data;
 };
 
@@ -1738,14 +1852,14 @@ $dec_server{0x0006} = sub {
    my $r;
    $r->{type} = "login";
    
-   $r->{message} = dec_CONSTANT q|login failed: registered user of same name exists|;
+   $r->{message} = dec_CONSTANT q|login failed: user of same name logged in|;
    $r;
 };
 $enc_server{login} = sub {
    $data = "";
    enc_U16 0x0006;
    
-   enc_CONSTANT defined $_[0]{message} ? $_[0]{message} : (q|login failed: registered user of same name exists|);
+   enc_CONSTANT defined $_[0]{message} ? $_[0]{message} : (q|login failed: user of same name logged in|);
    $data;
 };
 
@@ -2101,33 +2215,6 @@ $enc_server{usergraph} = sub {
    $data;
 };
 
-# memo
-$dec_server{0x001f} = sub {
-   $data = $_[0];
-   my $r;
-   $r->{type} = "memo";
-   
-   $r->{s1} = dec_ZSTRING q||;
-   $r->{s2} = dec_ZSTRING q||;
-   $r->{s3} = dec_ZSTRING q||;
-   $r->{s4} = dec_ZSTRING q||;
-   $r->{s5} = dec_ZSTRING q||;
-   $r->{s6} = dec_ZSTRING q||;
-   $r;
-};
-$enc_server{memo} = sub {
-   $data = "";
-   enc_U16 0x001f;
-   
-   enc_ZSTRING defined $_[0]{s1} ? $_[0]{s1} : (q||);
-   enc_ZSTRING defined $_[0]{s2} ? $_[0]{s2} : (q||);
-   enc_ZSTRING defined $_[0]{s3} ? $_[0]{s3} : (q||);
-   enc_ZSTRING defined $_[0]{s4} ? $_[0]{s4} : (q||);
-   enc_ZSTRING defined $_[0]{s5} ? $_[0]{s5} : (q||);
-   enc_ZSTRING defined $_[0]{s6} ? $_[0]{s6} : (q||);
-   $data;
-};
-
 # userpic
 $dec_server{0x0021} = sub {
    $data = $_[0];
@@ -2144,6 +2231,138 @@ $enc_server{userpic} = sub {
    
    enc_username defined $_[0]{name} ? $_[0]{name} : (q||);
    enc_DATA defined $_[0]{data} ? $_[0]{data} : (q||);
+   $data;
+};
+
+# memo_error
+$dec_server{0x0025} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "memo_error";
+   
+   $r->{name} = dec_username q||;
+   $r->{cid} = dec_CLIENTID16 q||;
+   $r->{message} = dec_CONSTANT q|memo send failed: account already exists|;
+   $r->{subtype} = dec_CONSTANT q|25|;
+   $r;
+};
+$enc_server{memo_error} = sub {
+   $data = "";
+   enc_U16 0x0025;
+   
+   enc_username defined $_[0]{name} ? $_[0]{name} : (q||);
+   enc_CLIENTID16 defined $_[0]{cid} ? $_[0]{cid} : (q||);
+   enc_CONSTANT defined $_[0]{message} ? $_[0]{message} : (q|memo send failed: account already exists|);
+   enc_CONSTANT defined $_[0]{subtype} ? $_[0]{subtype} : (q|25|);
+   $data;
+};
+
+# memo_error
+$dec_server{0x0026} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "memo_error";
+   
+   $r->{name} = dec_username q||;
+   $r->{cid} = dec_CLIENTID16 q||;
+   $r->{message} = dec_CONSTANT q|memo send failed: error 26|;
+   $r->{subtype} = dec_CONSTANT q|26|;
+   $r;
+};
+$enc_server{memo_error} = sub {
+   $data = "";
+   enc_U16 0x0026;
+   
+   enc_username defined $_[0]{name} ? $_[0]{name} : (q||);
+   enc_CLIENTID16 defined $_[0]{cid} ? $_[0]{cid} : (q||);
+   enc_CONSTANT defined $_[0]{message} ? $_[0]{message} : (q|memo send failed: error 26|);
+   enc_CONSTANT defined $_[0]{subtype} ? $_[0]{subtype} : (q|26|);
+   $data;
+};
+
+# memo_error
+$dec_server{0x0027} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "memo_error";
+   
+   $r->{name} = dec_username q||;
+   $r->{cid} = dec_CLIENTID16 q||;
+   $r->{message} = dec_CONSTANT q|memo send failed: user is online, use chat|;
+   $r->{subtype} = dec_CONSTANT q|27|;
+   $r;
+};
+$enc_server{memo_error} = sub {
+   $data = "";
+   enc_U16 0x0027;
+   
+   enc_username defined $_[0]{name} ? $_[0]{name} : (q||);
+   enc_CLIENTID16 defined $_[0]{cid} ? $_[0]{cid} : (q||);
+   enc_CONSTANT defined $_[0]{message} ? $_[0]{message} : (q|memo send failed: user is online, use chat|);
+   enc_CONSTANT defined $_[0]{subtype} ? $_[0]{subtype} : (q|27|);
+   $data;
+};
+
+# memo_error
+$dec_server{0x0028} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "memo_error";
+   
+   $r->{name} = dec_username q||;
+   $r->{cid} = dec_CLIENTID16 q||;
+   $r->{message} = dec_CONSTANT q|memo send failed: error 28|;
+   $r->{subtype} = dec_CONSTANT q|28|;
+   $r;
+};
+$enc_server{memo_error} = sub {
+   $data = "";
+   enc_U16 0x0028;
+   
+   enc_username defined $_[0]{name} ? $_[0]{name} : (q||);
+   enc_CLIENTID16 defined $_[0]{cid} ? $_[0]{cid} : (q||);
+   enc_CONSTANT defined $_[0]{message} ? $_[0]{message} : (q|memo send failed: error 28|);
+   enc_CONSTANT defined $_[0]{subtype} ? $_[0]{subtype} : (q|28|);
+   $data;
+};
+
+# memo
+$dec_server{0x0029} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "memo";
+   
+   $r->{name} = dec_username q||;
+   $r->{time} = dec_timestamp q||;
+   $r->{message} = dec_ZSTRING q||;
+   $r;
+};
+$enc_server{memo} = sub {
+   $data = "";
+   enc_U16 0x0029;
+   
+   enc_username defined $_[0]{name} ? $_[0]{name} : (q||);
+   enc_timestamp defined $_[0]{time} ? $_[0]{time} : (q||);
+   enc_ZSTRING defined $_[0]{message} ? $_[0]{message} : (q||);
+   $data;
+};
+
+# memo_sent
+$dec_server{0x002a} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "memo_sent";
+   
+   $r->{name} = dec_username q||;
+   $r->{cid} = dec_CLIENTID16 q||;
+   $r;
+};
+$enc_server{memo_sent} = sub {
+   $data = "";
+   enc_U16 0x002a;
+   
+   enc_username defined $_[0]{name} ? $_[0]{name} : (q||);
+   enc_CLIENTID16 defined $_[0]{cid} ? $_[0]{cid} : (q||);
    $data;
 };
 
@@ -2183,6 +2402,21 @@ $enc_server{notify_event} = sub {
    enc_U32 defined $_[0]{event} ? $_[0]{event} : (q||);
    enc_user defined $_[0]{user} ? $_[0]{user} : (q||);
    enc_game_record defined $_[0]{gamerecord} ? $_[0]{gamerecord} : (q||);
+   $data;
+};
+
+# unknown_030c
+$dec_server{0x030c} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "unknown_030c";
+   
+   $r;
+};
+$enc_server{unknown_030c} = sub {
+   $data = "";
+   enc_U16 0x030c;
+   
    $data;
 };
 
@@ -2243,22 +2477,22 @@ $enc_server{chal_defaults} = sub {
    $data;
 };
 
-# game_error
+# already_playing
 $dec_server{0x0412} = sub {
    $data = $_[0];
    my $r;
-   $r->{type} = "game_error";
+   $r->{type} = "already_playing";
    
    $r->{message} = dec_CONSTANT q|Sorry, you are already playing in one game, so you can't start playing in another.|;
-   $r->{channel} = dec_U16 q||;
+   $r->{cid} = dec_CLIENTID16 q||;
    $r;
 };
-$enc_server{game_error} = sub {
+$enc_server{already_playing} = sub {
    $data = "";
    enc_U16 0x0412;
    
    enc_CONSTANT defined $_[0]{message} ? $_[0]{message} : (q|Sorry, you are already playing in one game, so you can't start playing in another.|);
-   enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
+   enc_CLIENTID16 defined $_[0]{cid} ? $_[0]{cid} : (q||);
    $data;
 };
 
@@ -2551,22 +2785,32 @@ $enc_server{desc_room} = sub {
    $data;
 };
 
-# upd_challenge
+# challenge
 $dec_server{0x4400} = sub {
    $data = $_[0];
    my $r;
-   $r->{type} = "upd_challenge";
+   $r->{type} = "challenge";
    
    $r->{channel} = dec_U16 q||;
-   $r->{challenge} = dec_challenge q||;
+   $r->{black} = dec_user q||;
+   $r->{white} = dec_user q||;
+   $r->{gametype} = dec_U8 q||;
+   $r->{cid} = dec_CLIENTID8 q||;
+   $r->{rules} = dec_rules q||;
+   $r->{notes} = dec_STRING q||;
    $r;
 };
-$enc_server{upd_challenge} = sub {
+$enc_server{challenge} = sub {
    $data = "";
    enc_U16 0x4400;
    
    enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
-   enc_challenge defined $_[0]{challenge} ? $_[0]{challenge} : (q||);
+   enc_user defined $_[0]{black} ? $_[0]{black} : (q||);
+   enc_user defined $_[0]{white} ? $_[0]{white} : (q||);
+   enc_U8 defined $_[0]{gametype} ? $_[0]{gametype} : (q||);
+   enc_CLIENTID8 defined $_[0]{cid} ? $_[0]{cid} : (q||);
+   enc_rules defined $_[0]{rules} ? $_[0]{rules} : (q||);
+   enc_STRING defined $_[0]{notes} ? $_[0]{notes} : (q||);
    $data;
 };
 
@@ -2703,6 +2947,29 @@ $enc_server{superko} = sub {
    $data;
 };
 
+# game_done
+$dec_server{0x440a} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "game_done";
+   
+   $r->{channel} = dec_U16 q||;
+   $r->{id} = dec_U32 q||;
+   $r->{black} = dec_flag q||;
+   $r->{white} = dec_flag q||;
+   $r;
+};
+$enc_server{game_done} = sub {
+   $data = "";
+   enc_U16 0x440a;
+   
+   enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
+   enc_U32 defined $_[0]{id} ? $_[0]{id} : (q||);
+   enc_flag defined $_[0]{black} ? $_[0]{black} : (q||);
+   enc_flag defined $_[0]{white} ? $_[0]{white} : (q||);
+   $data;
+};
+
 # final_result
 $dec_server{0x440b} = sub {
    $data = $_[0];
@@ -2721,6 +2988,25 @@ $enc_server{final_result} = sub {
    enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
    enc_scorevalues defined $_[0]{blackscore} ? $_[0]{blackscore} : (q||);
    enc_scorevalues defined $_[0]{whitescore} ? $_[0]{whitescore} : (q||);
+   $data;
+};
+
+# out_of_time
+$dec_server{0x440c} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "out_of_time";
+   
+   $r->{channel} = dec_U16 q||;
+   $r->{player} = dec_U8 q||;
+   $r;
+};
+$enc_server{out_of_time} = sub {
+   $data = "";
+   enc_U16 0x440c;
+   
+   enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
+   enc_U8 defined $_[0]{player} ? $_[0]{player} : (q||);
    $data;
 };
 
@@ -2918,6 +3204,9 @@ $dec_server{0x4429} = sub {
    
    $r->{channel} = dec_U16 q||;
    $r->{name} = dec_username q||;
+   $r->{gametype} = dec_U8 q||;
+   $r->{cid} = dec_CLIENTID8 q||;
+   $r->{rules} = dec_rules q||;
    $r;
 };
 $enc_server{reject_challenge} = sub {
@@ -2926,6 +3215,70 @@ $enc_server{reject_challenge} = sub {
    
    enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
    enc_username defined $_[0]{name} ? $_[0]{name} : (q||);
+   enc_U8 defined $_[0]{gametype} ? $_[0]{gametype} : (q||);
+   enc_CLIENTID8 defined $_[0]{cid} ? $_[0]{cid} : (q||);
+   enc_rules defined $_[0]{rules} ? $_[0]{rules} : (q||);
+   $data;
+};
+
+# set_comments
+$dec_server{0x442b} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "set_comments";
+   
+   $r->{channel} = dec_U16 q||;
+   $r->{node} = dec_U32 q||;
+   $r->{comments} = dec_STRING q||;
+   $r;
+};
+$enc_server{set_comments} = sub {
+   $data = "";
+   enc_U16 0x442b;
+   
+   enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
+   enc_U32 defined $_[0]{node} ? $_[0]{node} : (q||);
+   enc_STRING defined $_[0]{comments} ? $_[0]{comments} : (q||);
+   $data;
+};
+
+# add_comments
+$dec_server{0x442c} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "add_comments";
+   
+   $r->{channel} = dec_U16 q||;
+   $r->{node} = dec_U32 q||;
+   $r->{comments} = dec_STRING q||;
+   $r;
+};
+$enc_server{add_comments} = sub {
+   $data = "";
+   enc_U16 0x442c;
+   
+   enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
+   enc_U32 defined $_[0]{node} ? $_[0]{node} : (q||);
+   enc_STRING defined $_[0]{comments} ? $_[0]{comments} : (q||);
+   $data;
+};
+
+# more_comments
+$dec_server{0x442d} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "more_comments";
+   
+   $r->{channel} = dec_U16 q||;
+   $r->{node} = dec_U32 q||;
+   $r;
+};
+$enc_server{more_comments} = sub {
+   $data = "";
+   enc_U16 0x442d;
+   
+   enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
+   enc_U32 defined $_[0]{node} ? $_[0]{node} : (q||);
    $data;
 };
 
@@ -2936,7 +3289,7 @@ $dec_server{0x442f} = sub {
    $r->{type} = "new_game";
    
    $r->{channel} = dec_U16 q||;
-   $r->{id} = dec_U16 q||;
+   $r->{cid} = dec_CLIENTID16 q||;
    $r;
 };
 $enc_server{new_game} = sub {
@@ -2944,7 +3297,7 @@ $enc_server{new_game} = sub {
    enc_U16 0x442f;
    
    enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
-   enc_U16 defined $_[0]{id} ? $_[0]{id} : (q||);
+   enc_CLIENTID16 defined $_[0]{cid} ? $_[0]{cid} : (q||);
    $data;
 };
 
@@ -2972,7 +3325,7 @@ $dec_server{0x4434} = sub {
    $r->{type} = "set_quiet";
    
    $r->{channel} = dec_U16 q||;
-   $r->{quiet} = dec_U8 q||;
+   $r->{quiet} = dec_flag q||;
    $r;
 };
 $enc_server{set_quiet} = sub {
@@ -2980,32 +3333,32 @@ $enc_server{set_quiet} = sub {
    enc_U16 0x4434;
    
    enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
-   enc_U8 defined $_[0]{quiet} ? $_[0]{quiet} : (q||);
+   enc_flag defined $_[0]{quiet} ? $_[0]{quiet} : (q||);
    $data;
 };
 
-# set_endtime
+# set_gametime
 $dec_server{0x4437} = sub {
    $data = $_[0];
    my $r;
-   $r->{type} = "set_endtime";
+   $r->{type} = "set_gametime";
    
    $r->{channel} = dec_U16 q||;
-   $r->{btime} = dec_time q||;
-   $r->{bcount} = dec_U16 q||;
-   $r->{wtime} = dec_time q||;
-   $r->{wcount} = dec_U16 q||;
+   $r->{black_time} = dec_time q||;
+   $r->{black_moves} = dec_U16 q||;
+   $r->{white_time} = dec_time q||;
+   $r->{white_moves} = dec_U16 q||;
    $r;
 };
-$enc_server{set_endtime} = sub {
+$enc_server{set_gametime} = sub {
    $data = "";
    enc_U16 0x4437;
    
    enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
-   enc_time defined $_[0]{btime} ? $_[0]{btime} : (q||);
-   enc_U16 defined $_[0]{bcount} ? $_[0]{bcount} : (q||);
-   enc_time defined $_[0]{wtime} ? $_[0]{wtime} : (q||);
-   enc_U16 defined $_[0]{wcount} ? $_[0]{wcount} : (q||);
+   enc_time defined $_[0]{black_time} ? $_[0]{black_time} : (q||);
+   enc_U16 defined $_[0]{black_moves} ? $_[0]{black_moves} : (q||);
+   enc_time defined $_[0]{white_time} ? $_[0]{white_time} : (q||);
+   enc_U16 defined $_[0]{white_moves} ? $_[0]{white_moves} : (q||);
    $data;
 };
 

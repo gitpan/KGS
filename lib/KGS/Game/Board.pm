@@ -54,10 +54,10 @@ sub capture {
 sub capture4 {
    my ($self, $mark, $x, $y) = @_;
 
-   $self->capture($mark, $x-1, $y) if $x > 0            && $self->{board}[$x-1][$y] & $mark;
-   $self->capture($mark, $x+1, $y) if $x < $self->{max} && $self->{board}[$x+1][$y] & $mark;
-   $self->capture($mark, $x, $y-1) if $y > 0            && $self->{board}[$x][$y-1] & $mark;
-   $self->capture($mark, $x, $y+1) if $y < $self->{max} && $self->{board}[$x][$y+1] & $mark;
+   $self->capture ($mark, $x-1, $y) if $x > 0            && $self->{board}[$x-1][$y] & $mark;
+   $self->capture ($mark, $x+1, $y) if $x < $self->{max} && $self->{board}[$x+1][$y] & $mark;
+   $self->capture ($mark, $x, $y-1) if $y > 0            && $self->{board}[$x][$y-1] & $mark;
+   $self->capture ($mark, $x, $y+1) if $y < $self->{max} && $self->{board}[$x][$y+1] & $mark;
 }
 
 sub interpret_path {
@@ -65,7 +65,7 @@ sub interpret_path {
 
    my $move;
 
-   $self->{last}    = COLOUR_BLACK; # black always starts.. ehrm..
+   $self->{last}    = COLOUR_WHITE; # black always starts.. ehrm..
    $self->{curnode} = $path->[-1];
 
    for (@$path) {
@@ -75,7 +75,7 @@ sub interpret_path {
                ? 0
                : MARK_SQUARE | MARK_TRIANGLE | MARK_CIRCLE | MARK_LABEL
          );
-               
+
       while (my ($k, $v) = each %$_) {
          if ($k =~ /^(\d+),(\d+)$/) {
             $self->{board}[$1][$2] =
@@ -89,17 +89,22 @@ sub interpret_path {
             if ($v->[0] & MARK_MOVE) {
                if ($v->[0] & MARK_B) {
                   $self->{last} = COLOUR_BLACK;
-                  $self->capture4(MARK_W, $1, $2);
+                  $self->capture4 (MARK_W, $1, $2);
                } else {
                   $self->{last} = COLOUR_WHITE;
-                  $self->capture4(MARK_B, $1, $2);
+                  $self->capture4 (MARK_B, $1, $2);
                }
             }
+
          } elsif ($k eq "timer") {
             $self->{timer}[0] = $v->[0] if defined $v->[0];
             $self->{timer}[1] = $v->[1] if defined $v->[1];
+
          } elsif ($k eq "pass") {
             $self->{last} = !$self->{last};
+
+         } elsif ($k eq "score") {
+            $self->{score} = $v;
          }
       }
 

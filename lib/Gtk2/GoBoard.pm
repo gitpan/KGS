@@ -18,18 +18,10 @@ use Glib::Object::Subclass
          2, 38, 19,
          [qw(construct-only writable readable)],
       ),
-      Glib::ParamSpec->IV (
-         "cursor-mask",
-         "cursor mask",
-         "The mask used to show a cursor",
-         0, 1<<30, 0,
-         [qw(writable readable)],
-      ),
-      Glib::ParamSpec->IV (
-         "cursor-value",
-         "cursor value",
-         "The value used to show a cursor",
-         0, 1<<30, 0,
+      Glib::ParamSpec->scalar (
+         "cursor",
+         "cursor callback",
+         "The callback that modified the cursor mask",
          [qw(writable readable)],
       ),
    ],
@@ -50,30 +42,15 @@ use Glib::Object::Subclass
       },
    };
 
-# marker types for each board position (ORed together)
-
-sub MARK_TRIANGLE (){ 0x0001 }
-sub MARK_SQUARE   (){ 0x0002 }
-sub MARK_CIRCLE   (){ 0x0004 }
-sub MARK_SMALL_B  (){ 0x0008 }
-sub MARK_SMALL_W  (){ 0x0010 }
-sub MARK_B        (){ 0x0020 }
-sub MARK_W        (){ 0x0040 }
-sub MARK_GRAYED   (){ 0x0080 }
-sub MARK_LABEL    (){ 0x0100 }
-sub MARK_HOSHI    (){ 0x0200 }
-sub MARK_MOVE     (){ 0x0400 }
-sub MARK_REDRAW   (){ 0x0800 }
-
 # some internal constants
 
-sub TRAD_WIDTH  (){  42.42 } # traditional board width
-sub TRAD_HEIGHT (){  45.45 } # traditional board height
-sub TRAD_RATIO  (){  TRAD_WIDTH / TRAD_HEIGHT } # traditional (nihon-kiin) horizontal spacing
-sub TRAD_SIZE_B (){   2.18 } # traditional black stone size
-sub TRAD_SIZE_W (){   2.12 } # traditional white stone size
+sub TRAD_WIDTH  (){ 42.42 } # traditional board width
+sub TRAD_HEIGHT (){ 45.45 } # traditional board height
+sub TRAD_RATIO  (){ TRAD_WIDTH / TRAD_HEIGHT } # traditional (nihon-kiin) horizontal spacing
+sub TRAD_SIZE_B (){  2.18 } # traditional black stone size
+sub TRAD_SIZE_W (){  2.12 } # traditional white stone size
 
-sub SHADOW	(){   0.06 }
+sub SHADOW	(){  0.06 } # 0.09 probably max.
 
 # find a data file using @INC
 sub findfile {
@@ -116,15 +93,21 @@ sub INIT_INSTANCE {
    $self->double_buffered (0);
    $self->set (border_width => 0, shadow_type => 'none',
                obey_child => 0, ratio => TRAD_RATIO);
-   $self->set(cursor_mask => MARK_B | MARK_W, cursor_value => MARK_B | MARK_GRAYED);
 
    $self->add ($self->{canvas} = new Gtk2::DrawingArea);
 
-   $self->{canvas}->signal_connect (configure_event      => sub { $self->configure_event ($_[1]) });
    $self->{canvas}->signal_connect (motion_notify_event  => sub { $self->motion });
    $self->{canvas}->signal_connect (leave_notify_event   => sub { $self->cursor (0); delete $self->{cursorpos} });
    $self->{canvas}->signal_connect (button_press_event   => sub { $self->button ("press", $_[1]) });
    $self->{canvas}->signal_connect (button_release_event => sub { $self->button ("release", $_[1]) });
+
+   $self->{canvas}->signal_connect_after (configure_event => sub { $self->configure_event ($_[1]) });
+   $self->{canvas}->signal_connect_after (realize => sub {
+      my $window = $_[0]->window;
+      my $color = new Gtk2::Gdk::Color 0xe0e0, 0xb2b2, 0x5e5e;
+      $window->get_colormap->alloc_color ($color, 0, 1);
+      $window->set_background ($color);
+   });
 
    $self->{canvas}->set_events ([
       @{ $self->{canvas}->get_events },
@@ -141,28 +124,26 @@ sub SET_PROPERTY {
 
    $pspec = $pspec->get_name;
 
-   $self->cursor (0) if $pspec =~ /^cursor/;
+   $self->cursor (0) if $pspec eq "cursor";
    $self->{$pspec} = $newval;
-   $self->cursor (1) if $pspec =~ /^cursor/;
+   $self->cursor (1) if $pspec eq "cursor";
 }
 
 sub configure_event {
    my ($self, $event) = @_;
 
-   $self->{window} = $self->{canvas}->window;
+   return if $self->{idle};
 
-   my $drawable = $self->{window};
-   
+   return unless $self->{canvas}->allocation->width  != $self->{width}
+              || $self->{canvas}->allocation->height != $self->{height};
+
+   my $drawable = $self->{window} = $self->{canvas}->window;
    $drawable->set_back_pixmap (undef, 0);
 
-   #my $gc = new Gtk2::Gdk::GC $drawable;
-   #$gc->set_rgb_fg_color (new Gtk2::Gdk::Color 0xe0e0, 0xb2b2, 0x5e5e);
-   #$drawable->draw_rectangle ($gc, 1, 0, 0, $self->allocation->width, $self->allocation->height);
+   delete $self->{stack};
 
    # remove Glib::Source $self->{idle};
    $self->{idle} ||= add Glib::Idle sub {
-      delete $self->{stack};
-
       $self->{width}  = $self->{canvas}->allocation->width;
       $self->{height} = $self->{canvas}->allocation->height;
       $self->draw_background;
@@ -532,20 +513,17 @@ sub cursor {
    my ($self, $show) = @_;
 
    return unless exists $self->{cursorpos}
-                     && $self->{cursor_mask}
+                     && $self->{cursor}
                      && $self->{backgroundpb};
 
    my ($x, $y) = @{$self->{cursorpos}};
 
-   my $new = $self->{board}{board}[$x-1][$y-1];
+   my $mark = $self->{board}{board}[$x][$y];
 
-   if ($show) {
-      $new & $self->{cursor_mask}
-         or $new = $new & ~$self->{cursor_mask} | $self->{cursor_value};
-   }
+   $mark = $self->{cursor}->($mark) if $show;
 
-   local $self->{board}{board}[$x-1][$y-1] = $new;
-   $self->{window}->clear_area (@{ $self->{draw_stone}->($x, $y) });
+   local $self->{board}{board}[$x][$y] = $mark;
+   $self->{window}->clear_area (@{ $self->{draw_stone}->($x + 1, $y + 1) });
 }
 
 sub motion {
@@ -558,17 +536,16 @@ sub motion {
 
    my $size = $self->{size};
 
-   my $x = int (($x - $self->{kx}[0]) * $size / ($self->{kx}[$size] - $self->{kx}[0]) + 0.5);
-   my $y = int (($y - $self->{ky}[0]) * $size / ($self->{ky}[$size] - $self->{ky}[0]) + 0.5);
+   my $x = int (($x - $self->{kx}[0]) * $size / ($self->{kx}[$size] - $self->{kx}[0]) + 0.5) - 1;
+   my $y = int (($y - $self->{ky}[0]) * $size / ($self->{ky}[$size] - $self->{ky}[0]) + 0.5) - 1;
 
    my $pos = $self->{cursorpos};
-   if ($x != $pos->[0]
-       || $y != $pos->[1]) {
+   if ($x != $pos->[0] || $y != $pos->[1]) {
 
       $self->cursor (0);
 
-      if ($x > 0 && $x <= $size
-          && $y > 0 && $y <= $size) {
+      if ($x >= 0 && $x < $size
+          && $y >= 0 && $y < $size) {
          $self->{cursorpos} = [$x, $y];
          $self->cursor (1);
       } else {

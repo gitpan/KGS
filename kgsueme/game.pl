@@ -23,20 +23,31 @@ sub INIT_INSTANCE {
    $self->{format} = sub { "???" };
 }
 
+sub FINALIZE_INSTANCE {
+   my $self = shift;
+
+   $self->stop;
+}
+
 sub configure {
    my ($self, $timesys, $main, $interval, $count) = @_;
 
    if ($timesys == TIMESYS_ABSOLUTE) {
-      $self->{set}    = sub { $self->{time} = $_[0] };
-      $self->{format} = sub { util::format_time $_[0] };
+      $self->{format} = sub {
+         if ($_[0] <= 0) {
+            "TIMEOUT";
+         } else {
+            util::format_time $_[0];
+         }
+      };
 
    } elsif ($timesys == TIMESYS_BYO_YOMI) {
       my $low = $interval * $count;
 
-      $self->{set}    = sub { $self->{time} = $_[0] };
-
       $self->{format} = sub {
-         if ($_[0] > $low) {
+         if ($_[0] <= 0) {
+            "TIMEOUT";
+         } elsif ($_[0] > $low) {
             util::format_time $_[0] - $low;
          } else {
             sprintf "%s (%d)",
@@ -46,10 +57,10 @@ sub configure {
       };
 
    } elsif ($timesys == TIMESYS_CANADIAN) {
-      $self->{set}    = sub { $self->{time} = $_[0]; $self->{moves} = $_[1] };
-
       $self->{format} = sub {
-         if (!$self->{moves}) {
+         if ($_[0] <= 0) {
+            "TIMEOUT";
+         } elsif (!$self->{moves}) {
             util::format_time $_[0] - $low;
          } else {
             my $time = int (($_[0] - 1) % $interval + 1);
@@ -65,44 +76,42 @@ sub configure {
 
    } else {
       # none, or unknown
-      $self->{set}    = sub { };
-      $self->{format} = sub { "---" }
+      $self->{format} = sub { "-" }
    }
 }
 
 sub refresh {
    my ($self, $timestamp) = @_;
    my $timer = $self->{time} + $self->{start} - $timestamp;
- 
+
    # we round the timer value slightly... the protocol isn't exact anyways,
    # and this gives smoother timers ;)
-   my @format = $self->{format}->(int ($timer + 0.4));
-   $self->set_text ($self->{format}->(int ($timer + 0.4)));
+   my $timer2 = int $timer + 0.4;
+
+   $self->set_text ($self->{format}->($timer2));
 
    $timer - int $timer;
 }
 
 sub set_time {
-   my ($self, $time) = @_;
+   my ($self, $start, $time, $moves) = @_;
 
-   # we ignore requests to re-set the time of a running clock.
-   # this is the easiest way to ensure that commentary etc.
-   # doesn't re-set the clock. yes, this is frickle design,
-   # but I think the protocol is to blame here, which gives
-   # very little time information. (cgoban2 also has had quite
-   # a lot of small time update problems...)
-   unless ($self->{timeout}) {
-      $self->{set}->($time->[0], $time->[1]);
+   $self->{time}  = $time;
+   $self->{moves} = $moves;
+
+   if ($start) {
+      $self->{start} = $start;
+      $self->start;
+   } else {
+      $self->stop;
       $self->refresh ($self->{start});
    }
 }
 
 sub start {
-   my ($self, $when) = @_;
+   my ($self) = @_;
 
    $self->stop;
-
-   $self->{start} = $when;
 
    my $timeout; $timeout = sub {
       my $next = $self->refresh (Time::HiRes::time) * 1000;
@@ -169,14 +178,16 @@ sub configure {
    $self->{clock}->configure (@{$rules}{qw(timesys time interval count)});
 }
 
-sub set_state {
-   my ($self, $captures, $timer, $when) = @_;
-
-   $self->{clock}->stop unless $when;
-   $self->{clock}->set_time ($timer);
-   $self->{clock}->start ($when) if $when;
+sub set_captures {
+   my ($self, $captures) = @_;
 
    $self->{info}->set_text ("$captures pris.");
+}
+
+sub set_timer {
+   my ($self, $start, $time, $moves) = @_;
+
+   $self->{clock}->set_time ($start, $time, $moves);
 }
 
 package game;
@@ -187,12 +198,13 @@ use KGS::Constants;
 use KGS::Game::Board;
 
 use Gtk2::GoBoard;
+use Gtk2::GoBoard::Constants;
+
+use base KGS::Game;
+use base KGS::Listener::Game;
 
 use Glib::Object::Subclass
    Gtk2::Window;
-
-use base KGS::Listener::Game;
-use base KGS::Game;
 
 use POSIX qw(ceil);
 
@@ -201,11 +213,8 @@ sub new {
    $self = $self->Glib::Object::new;
    $self->{$_} = delete $arg{$_} for keys %arg;
 
-   $self->listen ($self->{conn});
-
    gtk::state $self, "game::window", undef, window_size => [600, 500];
 
-   $self->signal_connect (delete_event => sub { $self->part; 1 });
    $self->signal_connect (destroy => sub {
       $self->unlisten;
       delete $self->{app}{game}{$self->{channel}};
@@ -248,29 +257,65 @@ sub new {
       $scale->set_draw_value (0);
       $scale->set_digits (0);
 
-      $self->{moveadj}->signal_connect (value_changed => sub { $self->update_board });
+      $self->{moveadj}->signal_connect (value_changed => sub {
+         $self->{showmove} = int $self->{moveadj}->get_value;
+         $self->update_board;
+      });
    }
 
    $vbox->pack_start ((my $hbox = new Gtk2::HBox 1), 0, 1, 0);
 
    $hbox->add ($self->{userpanel}[$_] = new game::userpanel colour => $_)
       for COLOUR_WHITE, COLOUR_BLACK;
+
+   $vbox->pack_start ((my $buttonbox = new Gtk2::HButtonBox), 0, 1, 0);
+
+   $buttonbox->add ($self->{button_pass} =
+      Gtk2::Button->Glib::Object::new (label => "Pass", no_show_all => 1, visible => 0));
+   $self->{button_pass}->signal_connect (clicked => sub {
+      $self->{board_click}->(255, 255) if $self->{board_click};
+   });
+   $buttonbox->add ($self->{button_undo} =
+      Gtk2::Button->Glib::Object::new (label => "Undo", no_show_all => 1, visible => 0));
+   $self->{button_undo}->signal_connect (clicked => sub {
+      $self->send (req_undo => channel => $self->{channel});
+   });
+   $buttonbox->add ($self->{button_resign} =
+      Gtk2::Button->Glib::Object::new (label => "Resign", no_show_all => 1, visible => 0));
+   $self->{button_resign}->signal_connect (clicked => sub {
+      $self->send (resign_game => channel => $self->{channel}, player => $self->{colour});
+   });
    
    $vbox->pack_start (($self->{chat} = new superchat), 1, 1, 0);
 
-   $self->{rules_inlay} = $self->{chat}->new_switchable_inlay ("Game Rules", sub { $self->draw_rules (@_) }, 1);
-   $self->{users_inlay} = $self->{chat}->new_switchable_inlay ("Users:", sub { $self->draw_users (@_) }, 0);
+   $self->set_channel ($self->{channel});
 
-   $self->{chat}->signal_connect (command => sub {
-      my ($chat, $cmd, $arg) = @_;
-      if ($cmd eq "rsave") {
-         Storable::nstore { tree => $self->{tree}, curnode => $self->{curnode}, move => $self->{move} }, $arg;#d#
-      } else {
-         $self->{app}->do_command ($chat, $cmd, $arg, userlist => $self->{userlist}, game => $self);
-      }
-   });
+   $self->show_all;
 
    $self;
+}
+
+sub set_channel {
+   my ($self, $channel) = @_;
+
+   $self->{channel} = $channel;
+
+   if ($self->{channel} > 0) {
+      $self->listen ($self->{conn});
+
+      $self->{rules_inlay} = $self->{chat}->new_switchable_inlay ("Game Setup:", sub { $self->draw_setup (@_) }, 1);
+      $self->{users_inlay} = $self->{chat}->new_switchable_inlay ("Users:", sub { $self->draw_users (@_) }, 1);
+
+      $self->signal_connect (delete_event => sub { $self->part; 1 });
+      $self->{chat}->signal_connect (command => sub {
+         my ($chat, $cmd, $arg) = @_;
+         if ($cmd eq "rsave") {
+            Storable::nstore { tree => $self->{tree}, curnode => $self->{curnode}, move => $self->{move} }, $arg;#d#
+         } else {
+            $self->{app}->do_command ($chat, $cmd, $arg, userlist => $self->{userlist}, game => $self);
+         }
+      });
+   }
 }
 
 sub event_update_users {
@@ -278,12 +323,15 @@ sub event_update_users {
 
 #   $self->{userlist}->update ($add, $update, $remove);
 
+   $self->{challenge}{$_->{name}} && (delete $self->{challenge}{$_->{name}})->{inlay}->destroy
+      for @$remove;
+
    $self->{users_inlay}->refresh;
 
    my %important;
-   $important{$self->{user1}{name}}++;
-   $important{$self->{user2}{name}}++;
-   $important{$self->{user3}{name}}++;
+   $important{$self->{black}{name}}++;
+   $important{$self->{white}{name}}++;
+   $important{$self->{owner}{name}}++;
 
    if (my @users = grep $important{$_->{name}}, @$add) {
       $self->{chat}->append_text ("\n<header>Joins:</header>");
@@ -293,7 +341,6 @@ sub event_update_users {
       $self->{chat}->append_text ("\n<header>Parts:</header>");
       $self->{chat}->append_text (" <user>" . $_->as_string . "</user>") for @users;
    }
-
 }
 
 sub join {
@@ -303,33 +350,157 @@ sub join {
    $self->SUPER::join;
 }
 
+sub update_cursor {
+   my ($self) = @_;
+
+   my $running = $self->{showmove} == @{$self->{path}} && $self->is_active;
+
+   delete $self->{board_click};
+
+   if ($self->{teacher} eq $self->{app}{conn}) {
+      #TODO# # teaching mode not implemented
+      $self->{button_pass}->set (label => "Pass", sensitive => 1, visible => 1);
+      $self->{button_undo}->hide;
+      $self->{button_resign}->hide;
+      $self->{board}->set (cursor => undef);
+
+   } elsif ($running && $self->{colour} != COLOUR_NONE) {
+      # during game
+      $self->{button_undo}->show;
+      $self->{button_resign}->show;
+
+      if ($self->{cur_board}{score}) {
+         # during scoring
+         $self->{button_pass}->set (label => "Done", sensitive => 1, visible => 1);
+         $self->{board}->set (cursor => sub {
+            $_[0] & (MARK_B | MARK_W)
+               ? $_[0] ^ MARK_GRAYED
+               : $_[0];
+         });
+         $self->{board_click} = sub {
+            if ($_[0] == 255) {
+               $self->{button_pass}->sensitive (0);
+               $self->done;
+            } else {
+               $self->send (mark_dead =>
+                  channel => $self->{channel},
+                  x       => $_[0],
+                  y       => $_[1],
+                  dead    => !($self->{cur_board}{board}[$_[0]][$_[1]] & MARK_GRAYED),
+               );
+            }
+         };
+
+      } elsif ($self->{colour} == $self->{whosemove}) {
+         # normal move
+         $self->{button_pass}->set (label => "Pass", sensitive => 1, visible => 1);
+         $self->{board}->set (cursor => sub {
+            # if is_valid_move oder so#TODO#
+            $_[0] & (MARK_B | MARK_W)
+               ? $_[0]
+               : $_[0] | MARK_GRAYED | ($self->{colour} == COLOUR_WHITE ? MARK_W : MARK_B);
+         });
+         $self->{board_click} = sub {
+            $self->send (game_move => channel => $self->{channel}, x => $_[0], y => $_[1]);
+            $self->{board}->set (cursor => undef);
+            delete $self->{board_click};
+            $self->{button_pass}->sensitive (0);
+         };
+      } else {
+         $self->{button_pass}->set (label => "Pass", sensitive => 0, visible => 1);
+         $self->{board}->set (cursor => undef);
+      }
+   } else {
+      $self->{button_undo}->hide;
+      $self->{button_resign}->hide;
+      $self->{button_pass}->hide;
+      $self->{board}->set (cursor => undef);
+      #TODO# # implement coordinate-grabbing
+   }
+}
+
+sub update_timers {
+   my ($self, $timers) = @_;
+
+   my $running = $self->{showmove} == @{$self->{path}} && !$self->{teacher};
+
+   for my $colour (COLOUR_BLACK, COLOUR_WHITE) {
+      my $t = $timers->[$colour];
+      $self->{userpanel}[$colour]->set_timer (
+            $running && $colour == $self->{whosemove} && $t->[0],
+            $t->[1] || $self->{rules}{time}
+                       + ($self->{rules}{timesys} == TIMESYS_BYO_YOMI
+                         && $self->{rules}{interval} * $self->{rules}{count}),
+            $t->[2] || $self->{rules}{count});
+   }
+}
+
 sub update_board {
    my ($self) = @_;
    return unless $self->{path};
 
-   my $move = int $self->{moveadj}->get_value;
-
-   my $running = $move == @{$self->{path}};
-
-   $self->{board_label}->set_text ("Move " . ($move - 1));
+   $self->{board_label}->set_text ("Move " . ($self->{showmove} - 1));
 
    $self->{cur_board} = new KGS::Game::Board $self->{size};
-   $self->{cur_board}->interpret_path ([@{$self->{path}}[0 .. $move - 1]]);
+   $self->{cur_board}->interpret_path ([@{$self->{path}}[0 .. $self->{showmove} - 1]]);
 
-   for my $colour (COLOUR_WHITE, COLOUR_BLACK) {
-      $self->{userpanel}[$colour]->set_state (
-         $self->{cur_board}{captures}[$colour],
-         $self->{cur_board}{timer}[$colour],
-         ($running && $self->{lastmove_colour} == !$colour)
-            ? $self->{lastmove_time} : 0
-      );
+   $self->{userpanel}[$_]->set_captures ($self->{cur_board}{captures}[$_])
+      for COLOUR_WHITE, COLOUR_BLACK;
+
+   if ($self->{rules}{ruleset} == RULESET_JAPANESE) {
+      if ($self->{curnode}{move} == 0) {
+         $self->{whosemove} = $self->{handicap} ? COLOUR_WHITE : COLOUR_BLACK;
+      } else {
+         $self->{whosemove} = 1 - $self->{cur_board}{last};
+      }
+   } else {
+      # Chinese, Aga, NZ all have manual placement
+      if ($self->{curnode}{move} < $self->{handicap}) {
+         $self->{whosemove} = COLOUR_BLACK;
+      } elsif ($self->{curnode}{move} == $self->{handicap}) {
+         $self->{whosemove} = COLOUR_WHITE;
+      } else {
+         $self->{whosemove} = 1 - $self->{cur_board}{last};
+      }
+   }
+
+   my $start_time = $self->{rules}{time};
+
+   if ($self->{showmove} == @{$self->{path}}) {
+      $self->{timers} = [
+         [$self->{lastmove_time}, @{$self->{cur_board}{timer}[0]}],
+         [$self->{lastmove_time}, @{$self->{cur_board}{timer}[1]}],
+      ];
+      $self->update_timers ($self->{timers});
+   } else {
+      $self->update_timers ([
+         [0, @{$self->{cur_board}{timer}[0]}],
+         [0, @{$self->{cur_board}{timer}[1]}],
+      ]);
    }
 
    $self->{board}->set_board ($self->{cur_board});
+
+   if ($self->{cur_board}{score}) {
+      $self->{score_inlay} ||= $self->{chat}->new_inlay;
+      $self->{score_inlay}->clear;
+      $self->{score_inlay}->append_text ("\n<header>Scoring</header>"
+                                         . "\n<score>"
+                                         . "White: $self->{cur_board}{score}[COLOUR_WHITE], "
+                                         . "Black: $self->{cur_board}{score}[COLOUR_BLACK]"
+                                         . "</score>");
+   } elsif ($self->{score_inlay}) {
+      (delete $self->{score_inlay})->clear;
+   }
+
+   $self->update_cursor;
 }
 
 sub event_update_tree {
    my ($self) = @_;
+
+   (delete $self->{undo_inlay})->clear
+      if $self->{undo_inlay};
 
    $self->{path} = $self->get_path;
 
@@ -389,8 +560,8 @@ sub event_join {
    my ($self) = @_;
 
    $self->SUPER::event_join (@_);
+   $self->init_tree;
    $self->event_update_game;
-   $self->show_all;
 }
 
 sub event_part {
@@ -407,80 +578,65 @@ sub event_move {
 
 sub event_update_game {
    my ($self) = @_;
+
    $self->SUPER::event_update_game;
 
    return unless $self->{joined};
 
+   $self->{colour} = $self->player_colour ($self->{conn}{name});
+   
    my $title = defined $self->{channel}
                   ? $self->owner->as_string . " " . $self->opponent_string
                   : "Game Window";
-   $self->set_title("KGS Game $title");
+   $self->set_title ("KGS Game $title");
    $self->{title}->set_text ($title);
 
-   $self->{user}[COLOUR_BLACK] = $self->{user1};
-   $self->{user}[COLOUR_WHITE] = $self->{user2};
+   $self->{user}[COLOUR_BLACK] = $self->{black};
+   $self->{user}[COLOUR_WHITE] = $self->{white};
 
    # show board
    if ($self->is_inprogress) {
       if (!$self->{boardbox}->parent) {
          $self->{boardbox}->add ($self->{board} = new Gtk2::GoBoard size => $self->{size});
          $self->{left}->add ($self->{boardbox});
+         $self->{board}->signal_connect (button_release => sub {
+            if ($_[1] == 1) {
+               $self->{board_click}->($_[2], $_[3]) if $self->{board_click};
+            }
+         });
       }
       if (my $ch = delete $self->{challenge}) {
-         (delete $_->{inlay})->clear for values %$ch;
+         $_->{inlay}->destroy for values %$ch;
       }
+      $self->update_cursor;
    }
 
    $self->{left}->show_all;
 
-   # view text
+   $self->{rules_inlay}->refresh;
    
-   eval { #d#
-   my @ga;
-   $ga[0] = "\nType: " . util::toxml $self->type_char;
-   $ga[1] = "\nFlags:";
-   $ga[1] .= " started"   if $self->is_inprogress;
-   $ga[1] .= " adjourned" if $self->is_adjourned;
-   $ga[1] .= " scored"    if $self->is_scored;
-   $ga[1] .= " saved"     if $self->is_saved;
-
-   $ga[2] = "\nOwner: <user>" . (util::toxml $self->{user3}->as_string) . "</user>"
-      if $self->{user3}->is_inprogress;
-
-   $ga[3] = "\nPlayers: <user>" . (util::toxml $self->{user2}->as_string) . "</user>"
-            . " vs. <user>" . (util::toxml $self->{user1}->as_string) . "</user>"
-      if $self->is_inprogress;
-
-   if ($self->is_inprogress) {
-      $ga[4] = "\nHandicap: " . $self->{handicap};
-      $ga[5] = "\nKomi: " . $self->{komi};
-      $ga[6] = "\nSize: " . $self->size_string;
-   }
-
-   if ($self->is_scored) {
-      $ga[7] = "\nResult: " . $self->score_string;
-   }
-
-   $text = "\n<infoblock><header>Game Update</header>";
-   for (0..7) {
-      if ($self->{gatext}[$_] ne $ga[$_]) {
-         $text .= $ga[$_];
-      }
-   }
-   $text .= "</infoblock>";
-
-   $self->{gatext} = \@ga;
-   };
-   
-   $self->{chat}->append_text ($text);
 }
 
-sub draw_rules {
+sub draw_setup {
    my ($self, $inlay) = @_;
+
+   return unless $self->{joined};
 
    my $rules = $self->{rules};
 
    my $text = "";
+
+   $text .= "\nTeacher: <user>" . (util::toxml $self->{teacher}) . "</user>"
+      if $self->{teacher};
+
+   $text .= "\nOwner: <user>" . (util::toxml $self->{owner}->as_string) . "</user>"
+      if $self->{owner}->is_valid;
+
+   if ($self->is_inprogress) {
+      $text .= "\nPlayers: <user>" . (util::toxml $self->{white}->as_string) . "</user>"
+               . " vs. <user>" . (util::toxml $self->{black}->as_string) . "</user>";
+   }
+   $text .= "\nType: " . util::toxml $gametype{$self->type};
 
    $text .= "\nRuleset: " . $ruleset{$rules->{ruleset}};
 
@@ -499,7 +655,25 @@ sub draw_rules {
       $text .= sprintf " + %s/%d CAN", util::format_time $rules->{interval}, $rules->{count};
    }
    
+   $text .= "\nFlags:";
+   $text .= " private"   if $self->is_private;
+   $text .= " started"   if $self->is_inprogress;
+   $text .= " adjourned" if $self->is_adjourned;
+   $text .= " scored"    if $self->is_scored;
+   $text .= " saved"     if $self->is_saved;
+
+   if ($self->is_inprogress) {
+      $text .= "\nHandicap: " . $self->{handicap};
+      $text .= "\nKomi: " . $self->{komi};
+      $text .= "\nSize: " . $self->size_string;
+   }
+
+   if ($self->is_scored) {
+      $text .= "\nResult: " . $self->score_string;
+   }
+
    $inlay->append_text ("<infoblock>$text</infoblock>");
+
 }
 
 sub event_update_rules {
@@ -517,15 +691,33 @@ sub event_update_rules {
    $self->{rules_inlay}->refresh;
 }
 
-sub inject_resign_game {
-   my ($self, $msg) = @_;
+sub event_resign_game {
+   my ($self, $player) = @_;
 
    sound::play 3, "resign";
-
    $self->{chat}->append_text ("\n<infoblock><header>Resign</header>"
                                . "\n<user>"
                                . (util::toxml $self->{user}[$msg->{player}]->as_string)
                                . "</user> resigned.</infoblock>");
+}
+
+sub event_out_of_time {
+   my ($self, $player) = @_;
+
+   sound::play 3, "timewin";
+   $self->{chat}->append_text ("\n<infoblock><header>Out of Time</header>"
+                               . "\n<user>"
+                               . (util::toxml $self->{user}[$msg->{player}]->as_string)
+                               . "</user> ran out of time and lost.</infoblock>");
+}
+
+sub event_done {
+   my ($self) = @_;
+
+   if ($self->{done}[1 - $self->{colour}] && !$self->{done}[$self->{colour}]) {
+      $self->{chat}->append_text ("\n<infoblock><header>Done</header>"
+                                  . "\nYour opponent pressed done.");
+   }
 }
 
 sub inject_final_result {
@@ -538,40 +730,211 @@ sub inject_final_result {
                               );
 }
 
+sub inject_set_gametime {
+   my ($self, $msg) = @_;
+
+   $self->{timers} = [
+      [$msg->{NOW}, $msg->{black_time}, $msg->{black_moves}],
+      [$msg->{NOW}, $msg->{white_time}, $msg->{white_moves}],
+   ];
+
+   $self->update_timers ($self->{timers})
+      if $self->{showmove} == @{$self->{path}};
+}
+
+sub inject_req_undo {
+   my ($self, $msg) = @_;
+
+   my $inlay = $self->{undo_inlay} ||= $self->{chat}->new_inlay;
+   return if $inlay->{ignore};
+
+   sound::play 3, "warning" unless $inlay->{count};
+   $inlay->{count}++;
+
+   $inlay->clear;
+   $inlay->append_text ("\n<undo>Undo requested ($inlay->{count} times)</undo>\n");
+   $inlay->append_button ("Grant", sub {
+      (delete $self->{undo_inlay})->clear;
+      $self->send (grant_undo => channel => $self->{channel});
+   });
+   $inlay->append_button ("Ignore", sub {
+      $inlay->clear;
+      $inlay->{ignore} = 1;
+      # but leave inlay, so further undo requests get counted
+   });
+
+   $self->{chat}->set_end;
+}
+
+sub inject_new_game {
+   my ($self, $msg) = @_;
+
+   $self->{chat}->append_text ("\n<header>ACK from server ($msg->{cid} == $self->{cid})</header>");
+   delete $self->{cid};
+}
+
 sub draw_challenge {
-   my ($self, $c) = @_;
+   my ($self, $id) = @_;
 
-   my $inlay     = $c->{inlay};
-   my $challenge = $c->{challenge};
-   my $rules     = $challenge->{rules};
+   my $info  = $self->{challenge}{$id};
+   my $inlay = $info->{inlay};
+   my $rules = $info->{rules};
 
-   my $as_black = $challenge->{user1}{name} eq $self->{conn}{name};
-   my $opponent = $as_black ? $challenge->{user2} : $challenge->{user1};
+   my $as_black = $info->{black}{name} eq $self->{conn}{name} ? 1 : 0;;
+   my $opponent = $as_black ? $info->{white} : $info->{black};
 
-   $inlay->append_text ("\n<challenge>Challenge to <user>" . $opponent->as_string . "</user></challenge>");
-   $inlay->append_text ("\nHandicap: $rules->{handicap}");
+   my ($size, $time, $interval, $count, $type);
 
-#bless( (
-#                gametype => 3,
-#                user1 => bless( {
-#                                  flags => 2633,
-#                                  name => 'dorkusx'
-#                                }, 'KGS::User' ),
-#                rules => bless( {
-#                                  count => 5,
-#                                  time => 900,
-#                                  timesys => 2,
-#                                  interval => 30,
-#                                  komi => '6.5',
-#                                  size => 19,
-#                                  ruleset => 0,
-#                                  handicap => 0
-#                                }, 'KGS::Rules' ),
-#                user2 => bless( {
-#                                  flags => 436220808,
-#                                  name => 'Nerdamus'
-#                                }, 'KGS::User' )
-#              ), 'KGS::Challenge' )
+   if (!$self->{channel}) {
+      $inlay->append_text ("\nNotes: ");
+      $inlay->append_entry (\$info->{notes}, 20, "");
+      $inlay->append_text ("\nGlobal Offer: ");
+      $inlay->append_optionmenu (\$info->{flags},
+         0 => "No",
+         2 => "Yes",
+      );
+   } else {
+      $inlay->append_text ("\nNotes: " . util::toxml $info->{notes});
+   }
+
+   $inlay->append_text ("\nType: ");
+   $type = $inlay->append_optionmenu (
+      \$info->{gametype},
+      GAMETYPE_DEMONSTRATION                   , "Demonstration (not yet)",
+      GAMETYPE_DEMONSTRATION | GAMETYPE_PRIVATE, "Demonstration (P) (not yet)",
+      GAMETYPE_TEACHING                        , "Teaching (not yet)",
+      GAMETYPE_TEACHING      | GAMETYPE_PRIVATE, "Teaching (P) (not yet)",
+      GAMETYPE_SIMUL                           , "Simul (not yet!)",
+      GAMETYPE_FREE                            , "Free",
+      GAMETYPE_RATED                           , "Rated",
+      sub {
+         $size->set_history (2) if $_[0] eq GAMETYPE_RATED;
+      },
+   );
+
+   if ($self->{channel}) {
+      $inlay->append_text ("\nMy Colour: ");
+      $inlay->append_optionmenu (
+         \$as_black,
+         0 => "White",
+         1 => "Black",
+         sub {
+            if ($info->{$_[0] ? "black" : "white"}{name} ne $self->{conn}{name}) {
+               ($info->{black}, $info->{white}) = ($info->{white}, $info->{black});
+            }
+         }
+      );
+   }
+
+   $inlay->append_text ("\nRuleset: ");
+   $inlay->append_optionmenu (
+      \$info->{rules}{ruleset},
+      RULESET_JAPANESE   , "Japanese",
+      RULESET_CHINESE    , "Chinese",
+      RULESET_AGA        , "AGA",
+      RULESET_NEW_ZEALAND, "New Zealand",
+   );
+
+   $inlay->append_text ("\nSize: ");
+   $size = $inlay->append_optionmenu (
+      \$info->{rules}{size},
+      (9 => 9, 13 => 13, 19 => 19, map +($_, $_), 2..38),
+      sub {
+         $type->set_history (5) # reset to free
+            if $_[0] != 19 && $info->{gametype} == GAMETYPE_RATED;
+      },
+   );
+
+   if ($self->{channel}) {
+      $inlay->append_text ("\nHandicap: ");
+      $inlay->append_optionmenu (\$info->{rules}{handicap}, map +($_, $_), 0..9);
+
+      $inlay->append_text ("\nKomi: ");
+      $inlay->append_entry (\$info->{rules}{komi}, 5);
+   }
+
+   $inlay->append_text ("\nTimesys: ");
+   $inlay->append_optionmenu (
+      \$info->{rules}{timesys},
+      &TIMESYS_NONE     => "None",
+      &TIMESYS_ABSOLUTE => "Absolute",
+      &TIMESYS_BYO_YOMI => "Byo Yomi",
+      &TIMESYS_CANADIAN => "Canadian",
+      sub {
+         my ($new) = @_;
+
+         if ($new eq TIMESYS_NONE) {
+            $time->hide;
+            $interval->hide;
+            $count->hide;
+         } else {
+            $time->show;
+            $time->set_text ($self->{app}{defaults}{time});
+            if ($new eq TIMESYS_ABSOLUTE) {
+               $interval->hide;
+               $count->hide;
+            } else {
+               $interval->show;
+               $count->show;
+               if ($new eq TIMESYS_BYO_YOMI) {
+                  $interval->set_text ($self->{app}{defaults}{byo_time});
+                  $count->set_text ($self->{app}{defaults}{byo_period});
+               } elsif ($new eq TIMESYS_CANADIAN) {
+                  $interval->set_text ($self->{app}{defaults}{can_time});
+                  $count->set_text ($self->{app}{defaults}{can_period});
+               }
+            }
+         }
+      }
+   );
+
+   $inlay->append_text ("\nMain Time: ");
+   $time = $inlay->append_entry (\$info->{rules}{time}, 5);
+   $inlay->append_text ("\nInterval: ");
+   $interval = $inlay->append_entry (\$info->{rules}{interval}, 3);
+   $inlay->append_text ("\nPeriods/Stones: ");
+   $count = $inlay->append_entry (\$info->{rules}{count}, 2);
+
+   $inlay->append_text ("\n");
+
+   if (!$self->{channel}) {
+      $inlay->append_button ("Create Challenge", sub {
+         $inlay->clear;
+         $self->{cid} = $self->{conn}->alloc_clientid;
+         $self->send (new_game => 
+            channel  => delete $self->{roomid},
+            gametype => $info->{gametype},
+            cid      => $self->{cid},
+            flags    => $info->{flags},
+            rules    => $info->{rules},
+            notes    => $info->{notes},
+         );
+      });
+   } else {
+      $inlay->append_button ("OK", sub {
+         $inlay->clear;
+         $self->send (challenge => 
+            channel  => $self->{channel},
+            black    => $info->{black},
+            white    => $info->{white},
+            gametype => $info->{gametype},
+            cid      => $info->{cid},
+            rules    => $info->{rules},
+         );
+      });
+      if (exists $self->{challenge}{""}) {
+         $inlay->append_button ("Reject", sub {
+            $inlay->clear;
+            $self->send (reject_challenge => 
+               channel  => $self->{channel},
+               name     => $opponent->{name},
+               gametype => $info->{gametype},
+               cid      => $info->{cid},
+               rules    => $info->{rules},
+            );
+         });
+      }
+   }
 }
 
 sub draw_users {
@@ -583,20 +946,24 @@ sub draw_users {
 }
 
 sub event_challenge {
-   my ($self, $challenge) = @_;
+   my ($self, $info) = @_;
 
-   my $as_black = $challenge->{user1}{name} eq $self->{conn}{name};
-   my $opponent = $as_black ? $challenge->{user2} : $challenge->{user1};
+   my $as_black = $info->{black}->{name} eq $self->{conn}{name};
+   my $opponent = $as_black ? $info->{white} : $info->{black};
 
-   my $c = $self->{challenge}{$opponent->{name}} ||= {};
+   my $id = $opponent->{name};
 
-   $c->{inlay} ||= $self->{chat}->new_inlay;
-   $c->{challenge} = $challenge;
-
-   $self->draw_challenge ($c);
-
-#   require KGS::Listener::Debug;
-#   $self->{chat}->append_text ("\n".KGS::Listener::Debug::dumpval($challenge));
+   $self->{challenge}{$id} = $info;
+   $self->{challenge}{$id}{inlay} = $self->{chat}->new_switchable_inlay (
+      exists $self->{challenge}{""}
+         ? "Challenge from $opponent->{name}"
+         : "Challenge to $opponent->{name}",
+      sub {
+         $self->{challenge}{$id}{inlay} = $_[0];
+         $self->draw_challenge ($id);
+      },
+      !exists $self->{challenge}{""} # only open when not offerer
+   );
 }
 
 1;

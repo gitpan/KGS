@@ -19,6 +19,7 @@ bin/kgsueme
 bin/kgsueme-gtk1
 bin/kgstrace
 bin/gtp-controller
+bin/kgs-igs
 
 lib/KGS/SGF.pm
 lib/KGS/Messages.pm
@@ -44,7 +45,6 @@ kgsueme/game.pl
 kgsueme/userlist.pl
 kgsueme/gtk.pl
 kgsueme/user.pl
-kgsueme/challenge.pl
 kgsueme/util.pl
 kgsueme/roomlist.pl
 kgsueme/user.pl
@@ -72,6 +72,7 @@ sounds/user_unknown
 sounds/user_unknown.wav
 sounds/warning
 sounds/warning.wav
+sounds/outoftime
 
 lib/Gtk2/GoBoard.pm
 lib/Gtk2/GoBoard/Constants.pm

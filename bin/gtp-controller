@@ -126,7 +126,7 @@ sub inject_new_game {
    my ($self, $msg) = @_;
 
    $::lastnew = $msg->{channel};#d#
-   $gtp->send ("kgs-game-new $msg->{id} $msg->{channel}");
+   $gtp->send ("kgs-game-new $msg->{cid} $msg->{channel}");
 }
 
 #############################################################################
@@ -162,9 +162,9 @@ sub event_update_games {
       $gtp->send (sprintf "kgs-game-update %d %d %s %s %s %s %d %d %f %d %d %d %d %s",
                   $self->{channel}, $_->{channel},
                   $_->type_char,
-                  ::format_user $_->{user1},
-                  ::format_user $_->{user2},
-                  ::format_user $_->{user3},
+                  ::format_user $_->{black},
+                  ::format_user $_->{white},
+                  ::format_user $_->{owner},
                   $_->size,
                   $_->{handicap},
                   $_->{komi},
@@ -451,11 +451,11 @@ sub parse_command {
       $self->reply ($id, "");
 
    } elsif ($cmd =~ /^kgs-game-new-demo\s+(\d+)\s+(\d+)$/) {
-      my $tid = $conn->alloc_channel;
+      my $tid = $conn->alloc_clientid;
       $kgs->send (new_game =>
                   channel  => $1,
-                  id       => $tid,
-                  gametype => 0,
+                  cid      => $tid,
+                  type     => 0,
                   rules => {
                      ruleset  => 0,
                      size     => $2,
@@ -534,8 +534,8 @@ Command extension used by the controller:
 kgs-login message
 kgs-room-update <rid> <name>          # update room info
 kgs-room-chat <rid> <user> <message>  # somebody says sth.
-kgs-game-update <rid> <gid> <type> <user1> <user2> \
-                <user3> <size> <handicap> <komi> <moves> \
+kgs-game-update <rid> <gid> <type> <black> <white> \
+                <owner> <size> <handicap> <komi> <moves> \
                 <flags> <observers> <saved> <notes>
 kgs-game-delete <rid> <gid>           # game removed
 kgs-user-update <rid> <user>          # user added/updated   

@@ -202,7 +202,8 @@ sub dec_TREE {
 
       } elsif ($type == 26) {
          push @r, [type_26 => dec_U8]; # sets a flag (?)
-         warn "unknown tree node 26, PLEASE REPORT AND INCLUDE THE GAME\n";
+         warn "unknown tree node 26, please ignore\n";
+         # possibly marks moves done while editing, as opposed to game-moves(?)
 
       } elsif ($type == 25) {
          push @r, [result => dec_result];
@@ -282,7 +283,7 @@ sub dec_TREE {
 
       }
 
-      push @{$r[-1]}, offset => sprintf "0x%x", $ofs;#d#
+      #push @{$r[-1]}, offset => sprintf "0x%x", $ofs;#d#
       
    }
 #         print STDERR KGS::Listener::Debug::dumpval(\@r);#d#

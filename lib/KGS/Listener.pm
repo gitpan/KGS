@@ -60,7 +60,7 @@ sub new {
 
 =cut
 
-=item $listener->listen($conn, [msgtype...])
+=item $listener->listen ($conn, [msgtype...])
 
 Registers the object to receive callback messages of the named type(s).
 
@@ -99,10 +99,10 @@ sub unlisten {
    my ($self) = @_;
 
    (delete $self->{conn})
-      ->unregister($self, @{$self->{listen_types}}) if $self->{conn};
+      ->unregister ($self, @{$self->{listen_types}}) if $self->{conn};
 }
 
-=item $listener->inject($msg)
+=item $listener->inject ($msg)
 
 The main injector callback.. all (listened for) messages end up in this
 method, which will just dispatch a method with name inject_<msgtype>.

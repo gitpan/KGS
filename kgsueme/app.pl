@@ -29,12 +29,12 @@ sub new {
 
    $self->{conn} = new KGS::Protocol::Client;
 
-   $self->listen ($self->{conn}, qw(login userpic idle_warn msg_chat));
+   $self->listen ($self->{conn}, qw(login userpic idle_warn msg_chat chal_defaults));
 
    $self->{roomlist} = new roomlist conn => $self->{conn}, app => $self;
 
    $self->set_title ('kgsueme');
-   gtk::state $self, "main::window", undef, window_size => [400, 400];
+   gtk::state $self, "main::window", undef, window_size => [400, 500];
    $self->signal_connect (destroy => sub { %{$_[0]} = () });
    $self->signal_connect (delete_event => sub { main_quit Gtk2; 1 });
 
@@ -62,12 +62,21 @@ sub new {
 
    $hbox->add (new Gtk2::Label "Password");
    $hbox->add ($self->{password} = new Gtk2::Entry);
-   $self->{password}->set_visibility(0);
+   $self->{password}->set (visibility => 0, is_focus => 1);
+   $self->{password}->signal_connect (activate => sub { $self->login });
 
-   $self->{gamelist} = new gamelist conn => $self->{conn}, app => $self;
-   $vbox->pack_start ($self->{gamelist}, 1, 1, 0);
+   $vbox->pack_start ((my $vpane = new Gtk2::VPaned), 1, 1, 0);
+   $vpane->set (position_set => 1);
+   gtk::state $vpane, "main::vpane", undef, position => 250;
 
    $vbox->pack_start(($self->{status} = new Gtk2::Statusbar), 0, 1, 0);
+
+   $self->{gamelist} = new gamelist conn => $self->{conn}, app => $self;
+   $vpane->pack1 ($self->{gamelist}, 1, 1);
+
+   $self->{rooms} = new Gtk2::Notebook;
+
+   $vpane->pack2 ($self->{rooms}, 1, 1);
 
    $self->show_all;
 
@@ -83,16 +92,16 @@ sub login {
    my $sock = new IO::Socket::INET PeerHost => KGS::Protocol::KGSHOST, PeerPort => KGS::Protocol::KGSPORT
       or die "connect: $!";
 
-   $sock->blocking(1);
-   $self->{conn}->handshake($sock);
-   $sock->blocking(0);
+   $sock->blocking (1);
+   $self->{conn}->handshake ($sock);
+   $sock->blocking (0);
 
    my $input; $input = add_watch Glib::IO fileno $sock, [G_IO_IN, G_IO_ERR, G_IO_HUP], sub {
       # this is dorked
       my $buf;
       my $len = sysread $sock, $buf, 16384;
       if ($len) {
-         $self->{conn}->feed_data($buf);
+         $self->{conn}->feed_data ($buf);
       } elsif (defined $len || (!$!{EINTR} and !$!{EAGAIN})) {
          warn "disconnected";#d#
          remove Glib::Source $input;
@@ -145,6 +154,12 @@ sub inject_msg_chat {
    }
 }
 
+sub inject_chal_defaults {
+   my ($self, $msg) = @_;
+
+   $self->{defaults} = $msg->{defaults};
+}
+
 my %userpic;
 my %userpic_cb;
 
@@ -179,7 +194,10 @@ sub inject_userpic {
    $_->($userpic{$msg->{name}}) for @{delete $userpic_cb{$msg->{name}} || []};
 }
 
-sub event_disconnect { }
+sub event_disconnect {
+   $_->destroy
+      for values %{delete $self->{game} or {}}, values %{delete $self->{room} or {}};
+}
 
 sub open_game {
    my ($self, %arg) = @_;
@@ -193,9 +211,15 @@ sub open_game {
 sub open_room {
    my ($self, %arg) = @_;
 
-   ($self->{room}{$arg{channel}} ||= new room %arg, conn => $self->{conn}, app => $self)
-      ->join;
+   my $room = $self->{room}{$arg{channel}} ||= do {
+      my $room = new room %arg, conn => $self->{conn}, app => $self;
+      $room->show_all;
+      $self->{rooms}->append_page ($room, new Gtk2::Label $room->{name});
+      $room;
+   };
    Scalar::Util::weaken $self->{room}{$arg{channel}};
+
+   $room->join;
    $self->{room}{$arg{channel}};
 }
 

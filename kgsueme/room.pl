@@ -5,14 +5,13 @@ use KGS::Constants;
 use base KGS::Listener::Room;
 
 use Glib::Object::Subclass
-   Gtk2::Window;
+   Gtk2::Frame;
 
 sub new {
    my ($self, %arg) = @_;
    $self = $self->Glib::Object::new;
    $self->{$_} = delete $arg{$_} for keys %arg;
 
-   $self->signal_connect (delete_event => sub { $self->part; 1 });
    $self->signal_connect (destroy => sub {
       delete $::config->{rooms}{$self->{channel}};
       delete $self->{app}{room}{$self->{channel}};
@@ -23,16 +22,11 @@ sub new {
 
    $self->listen ($self->{conn}, qw(msg_room:));
 
-   $self->set_title ("KGS Room $self->{name}");
-   gtk::state $self, "room::window", $self->{name}, window_size => [600, 400];
-
    $self->signal_connect (delete_event => sub { $self->part; 1 });
 
-   $self->add ($self->{hpane} = new Gtk2::HPaned);
-   $self->{hpane}->set (position_set => 1);
-   gtk::state $self->{hpane}, "room::hpane", $self->{name}, position => 200;
+   $self->add (my $hbox = new Gtk2::HBox);
 
-   $self->{hpane}->pack1 ((my $vbox = new Gtk2::VBox), 1, 1);
+   $hbox->pack_start ((my $vbox = new Gtk2::VBox), 1, 1, 0);
    
    $vbox->add ($self->{chat} = new chat);
 
@@ -41,7 +35,15 @@ sub new {
       $self->{app}->do_command ($chat, $cmd, $arg, userlist => $self->{userlist}, room => $self);
    });
 
-   $self->{hpane}->pack2 ((my $sw = new Gtk2::ScrolledWindow), 0, 1);
+   $hbox->pack_start ((my $vbox = new Gtk2::VBox), 0, 1, 0);
+
+   $vbox->pack_start ((my $button = new_with_label Gtk2::Button "Close"), 0, 1, 0);
+   $button->signal_connect (clicked => sub { $self->part });
+   
+   $vbox->pack_start ((my $button = new_with_label Gtk2::Button "New Game"), 0, 1, 0);
+   $button->signal_connect (clicked => sub { $self->new_game });
+
+   $vbox->pack_start ((my $sw = new Gtk2::ScrolledWindow), 1, 1, 0);
    $sw->set_policy("automatic", "always");
 
    $sw->add ($self->{userlist} = new userlist);
@@ -62,8 +64,8 @@ sub inject_msg_room {
    my ($self, $msg) = @_;
 
    # secret typoe ;-)
-   $self->{chat}->append_text("\n<header><user>" . (util::toxml $msg->{name})
-                              . "</user>: </header>" . (util::toxml $msg->{message}));
+   $self->{chat}->append_text ("\n<header><user>" . (util::toxml $msg->{name})
+                               . "</user>: </header>" . (util::toxml $msg->{message}));
 }
 
 sub event_update_users {
@@ -76,6 +78,20 @@ sub event_update_games {
    my ($self, $add, $update, $remove) = @_;
 
    $self->{app}{gamelist}->update ($self, $add, $update, $remove);
+
+   # try to identify any new games assigned to us. stupid protocol
+   # first updates the game, joins you and THEN tells you that
+   # which of the games you asked for this is.
+
+   for (@$add) {
+      if (($_->{black}{name} eq $self->{conn}{name}
+           || $_->{white}{name} eq $self->{conn}{name}
+           || $_->{owner}{name} eq $self->{conn}{name})
+          && (my $game = shift @{$self->{new_game}})) {
+         $game->inject_upd_game ({ game => $_ });
+         $game->set_channel ($game->{channel});
+      }
+   }
 }
 
 sub event_join {
@@ -105,6 +121,33 @@ sub event_update_roominfo {
 
    $self->{chat}->append_text("\n<user>" . (util::toxml $self->{owner}) . "</user>\n"
                               . "<description>" . (util::toxml $self->{description}) . "</description>\n");
+}
+
+sub new_game {
+   my ($self) = @_;
+
+   my $d = $self->{app}{defaults};
+
+   my $game = new game conn => $self->{conn}, app => $self->{app}, roomid => $self->{channel};
+   $game->{challenge}{""} = {
+      gametype => $d->{gametype},
+      flags    => 0,
+      notes    => $d->{stones},
+      rules    => {
+         ruleset  => $d->{ruleset},
+         size     => $d->{size},
+         timesys  => $d->{timesys},
+         time     => $d->{time},
+         interval => $d->{timesys} == TIMESYS_BYO_YOMI ? $d->{byo_time}    : $d->{can_time},
+         count    => $d->{timesys} == TIMESYS_BYO_YOMI ? $d->{byo_periods} : $d->{can_stones},
+      },
+
+      inlay => $game->{chat}->new_inlay,
+   };
+   $game->draw_challenge ("");
+   $game->show_all;
+
+   push @{$self->{new_game}}, $game;
 }
 
 1;

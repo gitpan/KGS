@@ -23,7 +23,7 @@
 </head>
 <body>
 
-<h1>$Revision: 1.54 $</h1>
+<h1>$Revision: 1.68 $</h1>
 
 <h1>KGS Protocol Description</h1>
 
@@ -47,10 +47,9 @@
    it.</p>
 
    <p>The current version of this document can always be found at 
-   <a href="http://cvs.sourceforge.net/cgi-bin/viewcvs.cgi/*checkout*/kgsueme/kgsueme/doc/protocol.xml?rev=HEAD&amp;content-type=text/xml">here</a>, while
+   <a href="http://cvs.schmorp.de/browse/*checkout*/kgsueme/doc/protocol.xml">here</a>, while
    the HTML version of it can be found
-   <a href="http://cvs.sourceforge.net/cgi-bin/viewcvs.cgi/*checkout*/kgsueme/kgsueme/doc/protocol.html?rev=HEAD&amp;content-type=text/html">here</a>.
-   (update: sourceforge is weeks behind on their anonymous cvs servers so the above might be out-of-date. sorry.)</p>
+   <a href="http://cvs.schmorp.de/browse/*checkout*/kgsueme/doc/protocol.html">here</a>.</p>
 
 <h2>Structure and conventions of this document and the protocol</h2>
 
@@ -194,6 +193,12 @@
    plaintext!): <code>password = 0; for char in characters do password ←
    password * 1055 + ascii_code (char)</code></p>
 
+   <type name="CLIENTID16" type="U16" multiplier="1"/>
+   <type name="CLIENTID8" type="U8" multiplier="1"/>
+
+   <p>An id chosen by the client, usually starting at one, to identify
+   some handshakes initiated by the client, such as new games or memos.</p>
+
 <h2>Enumeration and set types used in the protocol.</h2>
 
    <enum name="GAMETYPE">
@@ -264,6 +269,8 @@
       <p>Convinience constants used in several places.</p>
       <member name="BLACK" value="0"/>
       <member name="WHITE" value="1"/>
+      <member name="NONE" value="2"/>
+      <p>Sometimes used to mark absence of marks, or no player or etc...</p>
    </enum>
 
 <h2>Structs used in send &amp; receive messages</h2>
@@ -308,7 +315,7 @@
 
       <member name="ver_major" type="U32" value="2"/>
       <member name="ver_minor" type="U32" value="6"/>
-      <member name="ver_micro" type="U32" value="0"/>
+      <member name="ver_micro" type="U32" value="1"/>
       <member name="name" type="username"/>
       <member name="password" type="password" value="0"/>
       <member name="guest" type="flag" value="1"/>
@@ -361,16 +368,12 @@
    </message>
 
    <message type="001d" name="ping" src="client">
-      <p>Wild guess, I send it in <ref ref="idle_warn"/>.</p>
+      <p>No idea. Not used anymore?</p>
    </message>
 
    <message type="001e" name="req_usergraph" src="client">
       <p>Request user graph data, replied with <ref reply="usergraph"/>.</p>
       <member name="name" type="username"/>
-   </message>
-
-   <message type="001f" name="fetch_memos" src="client">
-      <p>Unclear. Fetch all outstanding memos? Replied with <ref reply="memo"/></p>
    </message>
 
    <message type="0021" name="req_pic" src="client">
@@ -388,7 +391,13 @@
 
    <message type="0023" name="send_memo" src="client">
       <member name="name" type="username"/>
+      <member name="cid" type="CLIENTID16"/>
+      <p>A boolean, probably. Always true for me.</p>
       <member name="msg" type="STRING"/>
+   </message>
+
+   <message type="0024" name="delete_memos" src="client">
+      <p>Unconditionally deletes all memos.</p>
    </message>
 
    <message type="0100" name="gnotice" src="client">
@@ -468,16 +477,12 @@
    </message>
 
    <message type="4305" name="new_game" src="client">
-      <p>Unclear. Start a new game.
-      <p>Clone: 00000: 20202020 20202020 20202020 20203238                28
-      00010: 9d000543 0d000000 00000000 00130201  ...C............
-      00020: 0000ffff ffffffff ffffffff 00000000  ..ÿÿÿÿÿÿÿÿÿÿ....</p>
-      </p>
+      <p>Create a new game.</p>
 
       <member name="channel" type="U16"/>
       <p>The room where to start the new game</p>
-      <member name="id" type="U16"/>
-      <member name="type" type="U8"/>
+      <member name="cid" type="CLIENTID16"/>
+      <member name="gametype" type="U8"/>
       <p>
          GAMETYPE_UPLOAD probably not allowed. GAMETYPE_PRIVATE
          only allowd together with GAMETYPE_TEACHING, GAMETYPE_DEMONSTRATION.
@@ -520,12 +525,15 @@
       <member name="channel" type="U16"/>
    </message>
 
-   <message type="4400" name="send_challenge" src="client">
-      Unclear.
+   <message type="4400" name="challenge" src="client">
+      <p>Used to send challenges to existing games.</p>
       <member name="channel" type="U16"/>
-      <member name="black" type="username"/>
-      <member name="white" type="username"/>
-      More following... TREE or challenge.
+      <member name="black" type="user"/>
+      <member name="white" type="user"/>
+      <member name="gametype" type="U8"/>
+      <member name="cid" type="CLIENTID8"/>
+      <p>Possibly an id. No idea. Better echo this from the challenge request.</p>
+      <member name="rules" type="rules"/>
    </message>
 
    <message type="4403" name="join_game" src="client">
@@ -548,34 +556,51 @@
    </message>
 
    <message type="4406" name="upd_tree" src="client">
-      Upload a partial game tree to the server. This is used to send moves
+      <p>Upload a partial game tree to the server. This is used to send moves
       and even in-game comments to the server. For the comments, the
-      server prepends the username and rank.
-
+      server prepends the username and rank.</p>
       <member name="channel" type="U16"/>
       <member name="tree" type="TREE"/>
    </message>
 
+   <message type="4407" name="mark_dead" src="client">
+      <p>Marks stones ad dead (or alive?) by the client. Details unclear</p>
+      <member name="channel" type="U16"/>
+      <member name="x" type="U8"/>
+      <member name="y" type="U8"/>
+      <member name="dead" type="flag"/>
+      <p>Possibly true means mark dead and false unmark, but that's just a wild guess.</p>
+   </message>
+
    <message type="4408" name="get_tree" src="client">
-      Request the game tree starting at a given node. This is used
-      when the server only sends a partial tree (with end code "more").
+      <p>Request the game tree starting at a given node. This is used when
+      the server only sends a partial tree (with end code "more").</p>
       <member name="channel" type="U16"/>
       <member name="node" type="U32"/>
    </message>
 
-   <message type="440c" name="claim_win" src="client">
-      Unclear.
+   <message type="440a" name="game_done" src="client">
+      <p>Sent by the client to mark the game as done.</p>
       <member name="channel" type="U16"/>
-      <member name="_byte" type="U8 "/>
-      Player colour maybe? Unclear.
+      <member name="id" type="U32"/>
+      <p>Probably some ID field to make sure that the client responds to the correct done click.</p>
+   </message>
+
+   <message type="440c" name="claim_win" src="client">
+      <p>Used by the client to claim a win.</p>
+      <member name="channel" type="U16"/>
+      <member name="player" type="U8 "/>
    </message>
 
    <message type="440d" name="add_time" src="client">
-      Not checked.
-
+      <p>Adds the given amount of time to your opponent's clock.</p>
       <member name="channel" type="U16"/>
       <member name="time" type="U32"/>
       <member name="player" type="U8"/>
+   </message>
+
+   <message type="440e" name="req_undo" src="client">
+      <member name="channel" type="U16"/>
    </message>
 
    <message type="440f" name="grant_undo" src="client">
@@ -607,7 +632,14 @@
    <message type="4423" name="set_privacy" src="client">
       Probably sets the "quiet" flag. Not checked.
       <member name="channel" type="U16"/>
-      <member name="private" type="U8"/>
+      <member name="private" type="flag"/>
+   </message>
+
+   <message type="4427" name="game_move" src="client">
+      <p>Only during playing, moves.</p>
+      <member name="channel" type="U16"/>
+      <member name="x" type="U8"/>
+      <member name="y" type="U8"/>
    </message>
 
    <message type="4429" name="reject_challenge" src="client">
@@ -615,6 +647,17 @@
 
       <member name="channel" type="U16"/>
       <member name="name" type="username"/>
+      <member name="gametype" type="U8"/>
+      <member name="cid" type="CLIENTID8"/>
+      <p>Possibly an id. No idea. Better echo this from the challenge request.</p>
+      <member name="rules" type="rules"/>
+   </message>
+
+   <message type="442d" name="more_comments" src="client">
+      <p>Quite brokenly, the want this to send you more comments.
+      Reply to <ref ref="more_comments"/>.</p>
+      <member name="channel" type="U16"/>
+      <member name="node" type="U32"/>
    </message>
 
    <message type="442e" name="save_game" src="client">
@@ -632,7 +675,7 @@
    <message type="4434" name="set_quiet" src="client">
       <p>Sets (or clears) the quiet flag on a game.</p>
       <member name="channel" type="U16"/>
-      <member name="quiet" type="U8"/>
+      <member name="quiet" type="flag"/>
    </message>
 
    <message type="4436" name="msg_game" src="client">
@@ -648,7 +691,9 @@
 
    <struct name="challenge_defaults">
       Send soon after log-in to set the defaults for game challenges.
-      <member name="gametype" type="U32"/>
+      <member name="gametype" type="U8"/>
+      <member name="ruleset" type="U8"/>
+      <p>The ruleset member is a pure guess, please verify. it could also be after size for example.</p>
       <member name="size" type="U32"/>
       <member name="timesys" type="U32"/>
       <member name="time" type="U32"/>
@@ -656,16 +701,7 @@
       <member name="byo_periods" type="U32"/>
       <member name="can_time" type="U32"/>
       <member name="can_stones" type="U32"/>
-   </struct>
-
-   <struct name="challenge" class="KGS::Challenge">
-      A challenge.
-
-      <member name="user1" type="user"/>
-      <member name="user2" type="user"/>
-      <member name="gametype" type="U32"/>
-      <member name="rules" type="rules"/>
-      Maybe the rules" are in TREE format. I forgot.
+      <member name="notes" type="STRING"/>
    </struct>
 
    <struct name="game" class="KGS::Game">
@@ -675,11 +711,11 @@
 
       <member name="channel" type="U16"/>
       <member name="type" type="U8"/>
-      <member name="user1" type="user"/>
+      <member name="black" type="user"/>
       White
-      <member name="user2" type="user"/>
+      <member name="white" type="user"/>
       Black
-      <member name="user3" type="user"/>
+      <member name="owner" type="user"/>
       Owner
       <member name="size" type="U8"/>
       <member name="handicap" type="I8"/>
@@ -731,15 +767,15 @@
       Time this game was played.
       <member name="flags1" type="U8"/>
       <p>0:3 == handicap, 4:7 == gametype:0:4</p>
-      <member name="user1" type="user"/>
+      <member name="black" type="user"/>
       White, flags contain low 8 bits of revision (bits 16-23).
-      <member name="user2" type="user"/>
+      <member name="white" type="user"/>
       Black, flags contain high 8 bits of revision (bits 16-23).
-      <member name="user3" type="user"/>
+      <member name="owner" type="user"/>
 
       <p><p>Owner (or empty)</p>
 
-      <p>The bits 16-24 of user1.flags and user2.flags give the high and
+      <p>The bits 16-24 of black.flags and white.flags give the high and
       low bits of a revision number in case there are multiple similar
       games.</p></p>
 
@@ -779,7 +815,7 @@
    </message>
 
    <message type="0006" name="login" src="server">
-      <member name="message" type="CONSTANT" value='login failed: registered user of same name exists'/>
+      <member name="message" type="CONSTANT" value='login failed: user of same name logged in'/>
    </message>
 
    <message type="0008" name="userinfo" src="server">
@@ -856,7 +892,7 @@
    </message>
 
    <message type="0016" name="idle_warn" src="server">
-      idle warning, autologout soon (10 minutes...)
+      <p>idle warning, autologout soon (10 minutes...). Responding with <ref ref="ping"/> usually helps.</p>
    </message>
 
    <message type="0018" name="login" src="server">
@@ -903,21 +939,54 @@
       There is probably one entry per day, the newest one last.
    </message>
 
-   <message type="001f" name="memo" src="server">
-      Unclear. "Leave Message"?
-      6 strings following.
-      <member name="s1" type="ZSTRING"/>
-      <member name="s2" type="ZSTRING"/>
-      <member name="s3" type="ZSTRING"/>
-      <member name="s4" type="ZSTRING"/>
-      <member name="s5" type="ZSTRING"/>
-      <member name="s6" type="ZSTRING"/>
-   </message>
-
    <message type="0021" name="userpic" src="server">
       <member name="name" type="username"/>
       Reply to pic_req, contains an image in jpeg format.
       <member name="data" type="DATA"/>
+   </message>
+
+   <message type="0025" name="memo_error" src="server">
+      <p>Account unknown.</p>
+      <member name="name" type="username"/>
+      <member name="cid" type="CLIENTID16"/>
+      <member name="message" type="CONSTANT" value='memo send failed: account already exists'/>
+      <member name="subtype" type="CONSTANT" value='25'/>
+   </message>
+
+   <message type="0026" name="memo_error" src="server">
+      <p>Just a guess.</p>
+      <member name="name" type="username"/>
+      <member name="cid" type="CLIENTID16"/>
+      <member name="message" type="CONSTANT" value='memo send failed: error 26'/>
+      <member name="subtype" type="CONSTANT" value='26'/>
+   </message>
+
+   <message type="0027" name="memo_error" src="server">
+      <p>User is currently online, please use chat.</p>
+      <member name="name" type="username"/>
+      <member name="cid" type="CLIENTID16"/>
+      <member name="message" type="CONSTANT" value='memo send failed: user is online, use chat'/>
+      <member name="subtype" type="CONSTANT" value='27'/>
+   </message>
+
+   <message type="0028" name="memo_error" src="server">
+      <p>Just a guess.</p>
+      <member name="name" type="username"/>
+      <member name="cid" type="CLIENTID16"/>
+      <member name="message" type="CONSTANT" value='memo send failed: error 28'/>
+      <member name="subtype" type="CONSTANT" value='28'/>
+   </message>
+
+   <message type="0029" name="memo" src="server">
+      <member name="name" type="username"/>
+      <member name="time" type="timestamp"/>
+      <member name="message" type="ZSTRING"/>
+   </message>
+
+   <message type="002a" name="memo_sent" src="server">
+      <p>The memo was sent successfully</p>
+      <member name="name" type="username"/>
+      <member name="cid" type="CLIENTID16"/>
    </message>
 
    <message type="0100" name="gnotice" src="server">
@@ -935,6 +1004,10 @@
       
    </message>
 
+   <message type="030c" name="unknown_030c" src="server">
+      <p>Not the slightest... No payload, either.</p>
+   </message>
+
    <message type="0310" name="priv_room" src="server">
       "permission denied" when joining a room
       <member name="name" type="STRING"/>
@@ -949,10 +1022,11 @@
       <member name="defaults" type="challenge_defaults"/>
    </message>
 
-   <message type="0412" name="game_error" src="server">
-      Unable to create challenge. The channel is be optional.
+   <message type="0412" name="already_playing" src="server">
+      Unable to create new game.
       <member name="message" type="CONSTANT" value='Sorry, you are already playing in one game, so you can&apos;t start playing in another.'/>
-      <member name="channel" type="U16"/>
+      <member name="cid" type="CLIENTID16"/>
+      <p>The cid of the new_game etc. request.</p>
    </message>
 
    <message type="0414" name="game_record" src="server">
@@ -1003,6 +1077,7 @@
          The room this game is associated with.
       </p>
       <member name="game" type="game"/>
+      <p>The game. The "moves" member contains a small number. Probably garbage.</p>
    </message>
 
 <h3>Room messages</h3>
@@ -1043,10 +1118,17 @@
 
 <h3>Game messages</h3>
 
-   <message type="4400" name="upd_challenge" src="server">
+   <message type="4400" name="challenge" src="server">
       Unclear.
       <member name="channel" type="U16"/>
-      <member name="challenge" type="challenge"/>
+      <member name="black" type="user"/>
+      <member name="white" type="user"/>
+      <member name="gametype" type="U8"/>
+      <member name="cid" type="CLIENTID8"/>
+      <p>Possibly an id. No idea. Better echo this from the challenge request.</p>
+      <member name="rules" type="rules"/>
+      <member name="notes" type="STRING"/>
+      <p>This field is optional</p>
    </message>
 
    <message type="4401" name="upd_game" src="server">
@@ -1083,15 +1165,31 @@
       <member name="channel" type="U16"/>
    </message>
 
+   <message type="440a" name="game_done" src="server">
+      <p>Send by the server when one of the players sends a done.</p>
+      <member name="channel" type="U16"/>
+      <member name="id" type="U32"/>
+      <p>Probably some ID field to make sure that the client responds to the correct done click.</p>
+      <p>The high bit has some function I don't know. It must be cleared when replying.</p>
+      <member name="black" type="flag"/>
+      <member name="white" type="flag"/>
+   </message>
+
    <message type="440b" name="final_result" src="server">
       <member name="channel" type="U16"/>
       <member name="blackscore" type="scorevalues"/>
       <member name="whitescore" type="scorevalues"/>
    </message>
 
+   <message type="440c" name="out_of_time" src="server">
+      <p>Sent when the user is out of time and moves, or when the opponent
+      requests <ref reply="userinfo"/>.</p>
+      <member name="channel" type="U16"/>
+      <member name="player" type="U8"/>
+   </message>
+
    <message type="440e" name="req_undo" src="server">
       <member name="channel" type="U16"/>
-
    </message>
 
    <message type="4410" name="resign_game" src="server">
@@ -1143,9 +1241,35 @@
 
    <message type="4429" name="reject_challenge" src="server">
       Reject a challenge by a given user. Not checked.
+      <!-- should become a record type somehow... -->
 
       <member name="channel" type="U16"/>
       <member name="name" type="username"/>
+      <member name="gametype" type="U8"/>
+      <member name="cid" type="CLIENTID8"/>
+      <p>Possibly an id. No idea. Better echo this from the challenge request.</p>
+      <member name="rules" type="rules"/>
+   </message>
+
+   <message type="442b" name="set_comments" src="server">
+      <p>Sent at end of games to set the comments not seen previously.</p>
+      <member name="channel" type="U16"/>
+      <member name="node" type="U32"/>
+      <member name="comments" type="STRING"/>
+   </message>
+
+   <message type="442c" name="add_comments" src="server">
+      <p>Sent at end of games to add all game commentary.</p>
+      <member name="channel" type="U16"/>
+      <member name="node" type="U32"/>
+      <member name="comments" type="STRING"/>
+   </message>
+
+   <message type="442d" name="more_comments" src="server">
+      <p>Quite brokenly, the server sends you this to make you ask for more comments.
+      Reply with <ref reply="more_comments"/>.</p>
+      <member name="channel" type="U16"/>
+      <member name="node" type="U32"/>
    </message>
 
    <message type="442f" name="new_game" src="server">
@@ -1155,7 +1279,7 @@
 
       <member name="channel" type="U16"/>
       <p>The newly created game.</p>
-      <member name="id" type="U16"/>
+      <member name="cid" type="CLIENTID16"/>
       <p>The ID sent to the server in new_game.</p>
    </message>
 
@@ -1168,17 +1292,17 @@
    <message type="4434" name="set_quiet" src="server">
       <p>Sets (or clears) the quiet flag on a game.</p>
       <member name="channel" type="U16"/>
-      <member name="quiet" type="U8"/>
+      <member name="quiet" type="flag"/>
    </message>
 
-   <message type="4437" name="set_endtime" src="server">
-      <p>Sent when joining a scored game (not when scoring). Probably
-      gives the remaining time + periods/moves for the players.</p>
+   <message type="4437" name="set_gametime" src="server">
+      <p>Sent when joining a running game. Gives the remaining time +
+      periods/moves for the players, to correctly initialize the clocks.</p>
       <member name="channel" type="U16"/>
-      <member name="btime" type="time"/>
-      <member name="bcount" type="U16"/>
-      <member name="wtime" type="time"/>
-      <member name="wcount" type="U16"/>
+      <member name="black_time" type="time"/>
+      <member name="black_moves" type="U16"/>
+      <member name="white_time" type="time"/>
+      <member name="white_moves" type="U16"/>
    </message>
 
    <message type="443b" name="del_global_challenge" src="server">

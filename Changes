@@ -1,5 +1,13 @@
 Revision history for Perl extension KGS.
 
+0.4  Mon May 31 03:08:17 CEST 2004
+	- the adventerous user might try to play games with
+          the sample client now.
+        - Gtk2::GoBoard now uses zerobased coordinates.
+	- added and corrected many challenge- and play-related
+          protocol messages.
+        - renamed user1/user2/user3 to black/white/owner.
+
 0.3  Tue May 25 22:24:45 CEST 2004
 	- 2.6.0 protocol changes triggered this release. a few
           details are probably not worked out yet.
