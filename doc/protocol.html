@@ -22,7 +22,7 @@
 </head>
 <body>
 
-<h1>$Revision: 1.74 $</h1>
+<h1>$Revision: 1.78 $</h1>
 
 <h1>KGS Protocol Description</h1>
 
@@ -121,7 +121,7 @@
         <td> </td>
         <td>
       <p>If the type is &gt;= 0x4000 this is a message for a specific channel. The channel
-      number is always the next U16.</p>
+      number is always the next U16. All of these channel values are valid, including zero.</p>
 
       <p>Beginning with version 2.5.x, a number is <em>added</em> on <em>received</em>
       messages only. The algorithm is as follows:
@@ -190,32 +190,36 @@
    <p>Just a simple boolean value. 0 means false, and 1 generally true,
    but I suggest accepting != 0 as true.</p>
 
-   <h4>TYPE komi16</h4>
+   <h4>TYPE komi16_2</h4>
    BASE TYPE I16, LENGTH , MULTIPLIER 2<br />
-   <h4>TYPE komi32</h4>
+   <h4>TYPE komi16_4</h4>
+   BASE TYPE I16, LENGTH , MULTIPLIER 4<br />
+   <h4>TYPE komi32_2</h4>
    BASE TYPE I32, LENGTH , MULTIPLIER 2<br />
-   <h4>TYPE komi324</h4>
+   <h4>TYPE komi32_4</h4>
    BASE TYPE I32, LENGTH , MULTIPLIER 4<br />
 
-   <p>Komi values are multiplied by 2 to make them integer in the
-   protocol. Well, *most* of the time at least...</p>
+   <p>Komi values are multiplied by 2 or 4 to make them integer in the
+   protocol.</p>
 
    <h4>TYPE result</h4>
    BASE TYPE I32, LENGTH , MULTIPLIER 2<br />
 
-   <p>The game result is also multiplied by two to give it higher
+   <p>The game result is also multiplied by 2 to give it higher
    resolution. There are also special values for wins by time etc., either
    in result or in the score* types, or both :)</p>
 
-   <h4>TYPE score16</h4>
+   <h4>TYPE score16_2</h4>
+   BASE TYPE I16, LENGTH , MULTIPLIER 2<br />
+   <h4>TYPE score16_4</h4>
    BASE TYPE I16, LENGTH , MULTIPLIER 4<br />
-   <h4>TYPE score32</h4>
+   <h4>TYPE score32_4</h4>
    BASE TYPE I32, LENGTH , MULTIPLIER 4<br />
-   <h4>TYPE score1000</h4>
+   <h4>TYPE score32_1000</h4>
    BASE TYPE I32, LENGTH , MULTIPLIER 1000<br />
 
    <p>A score value (used for displaying the score at the end of a game)
-   are multiplied by four for a change (the 0.25 resolution is not
+   are multiplied by 2 or 4 for a change (the 0.25 resolution is not
    used). In game structures it is encoded by dividing by two, though, so
    watch out! And in some others, it's encoded by multiplying by 1000...
    yuck!</p>
@@ -345,7 +349,7 @@
         <td></td>
         <td>128 </td>
         <td>
-      <p>PRIVATE is ored onto DEMONSTRATION or TEACHING</p>
+      <p>PRIVATE is or'ed onto DEMONSTRATION or TEACHING</p>
    
             
        </td>
@@ -492,7 +496,7 @@
    <h4>enum: SCORE</h4>
     <p>
       <p>Special score values, in addition to numerical scores. Some are also used with their
-      negative value.</p>
+      negative value. Unfortunately, these are the raw vaues, before scaling. WMS loves code duplication.</p>
     </p>
     <table border="1" width="100%">
       <tr>
@@ -505,7 +509,7 @@
       <tr>
         <td>TIMEOUT</td>
         <td></td>
-        <td>16384 / 4 </td>
+        <td>16384 </td>
         <td>
       Also used negatively to score for white instead of black.
 
@@ -520,7 +524,7 @@
       <tr>
         <td>RESIGN</td>
         <td></td>
-        <td>16385 / 4 </td>
+        <td>16385 </td>
         <td>
       Also used negatively to score for white instead of black.
 
@@ -535,7 +539,7 @@
       <tr>
         <td>FORFEIT</td>
         <td></td>
-        <td>    0 / 4 </td>
+        <td>    0 </td>
         <td>
       Also used negatively to score for white instead of black.
 
@@ -550,7 +554,7 @@
       <tr>
         <td>JIGO</td>
         <td></td>
-        <td>16386 / 4 </td>
+        <td>16386 </td>
         <td>
 
       
@@ -564,7 +568,7 @@
       <tr>
         <td>NO_RESULT</td>
         <td></td>
-        <td>16386 / 4 </td>
+        <td>16386 </td>
         <td>
       
             
@@ -577,7 +581,7 @@
       <tr>
         <td>ADJOURNED</td>
         <td></td>
-        <td>16387 / 4 </td>
+        <td>16387 </td>
         <td>
       
             
@@ -590,7 +594,7 @@
       <tr>
         <td>UNKNOWN</td>
         <td></td>
-        <td>16389 / 4 </td>
+        <td>16389 </td>
         <td>
    
             
@@ -888,7 +892,7 @@
       </tr>
       <tr>
         <td>komi</td>
-        <td>komi16</td>
+        <td>komi16_2</td>
         <td> </td>
         <td>
       
@@ -1857,8 +1861,8 @@
         <td>timestamp</td>
         <td> </td>
         <td>
-      If zero, start at the newest games, else only send games
-      before the given timestap.
+      <p>If zero, start at the newest games, else this should be the timestamp
+      of the first gamerecord sent in the <a href="#S0414">game_record(0414)</a> response.</p>
    
             
        </td>
@@ -3607,7 +3611,7 @@
       </tr>
       <tr>
         <td>komi</td>
-        <td>komi16</td>
+        <td>komi16_2</td>
         <td> </td>
         <td>
       
@@ -3625,7 +3629,7 @@
         <td>
       This field reflects either the movenum or the score, sorry, not even guards help, as
       the flags to determine that are _after_ the field. Arg. Divide by two to get the actual
-      score (NOT score16!) (arg²).
+      score (arg²).
       
             
        </td>
@@ -3675,7 +3679,7 @@
       </tr>
       <tr>
         <td>notes</td>
-        <td>STRING</td>
+        <td>ZSTRING</td>
         <td> </td>
         <td>
    
@@ -3683,6 +3687,48 @@
        </td>
         <td>
           <b>handicap</b> &lt; 0
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>STRUCTURE room_game</h4>
+    <p>
+      A game with the room id prepended.
+
+      </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>channel</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      <p>The room channel.</p>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>game</td>
+        <td>game</td>
+        <td> </td>
+        <td>
+   
+            
+       </td>
+        <td>
+          <b></b> 
             
        </td>
       </tr>
@@ -3861,7 +3907,7 @@
       </tr>
       <tr>
         <td>score</td>
-        <td>score32</td>
+        <td>score32_4</td>
         <td> </td>
         <td>
       
@@ -3926,7 +3972,7 @@
       </tr>
       <tr>
         <td>komi</td>
-        <td>komi324</td>
+        <td>komi32_4</td>
         <td> </td>
         <td>
       
@@ -3981,11 +4027,39 @@
        </td>
       </tr>
       <tr>
-        <td>flags1</td>
+        <td>type</td>
         <td>U8</td>
         <td> </td>
         <td>
-      <p>0:3 == handicap, 4:7 == gametype:0:4</p>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>handicap</td>
+        <td>U8</td>
+        <td> </td>
+        <td>
+
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>revision</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      <p>A revision number in case there are multiple similar games.</p>
+
       
             
        </td>
@@ -3999,7 +4073,6 @@
         <td>user</td>
         <td> </td>
         <td>
-      White, flags contain low 8 bits of revision (bits 16-23).
       
             
        </td>
@@ -4013,7 +4086,6 @@
         <td>user</td>
         <td> </td>
         <td>
-      Black, flags contain high 8 bits of revision (bits 16-23).
       
             
        </td>
@@ -4028,14 +4100,6 @@
         <td> </td>
         <td>
 
-      <p>
-            <p>Owner (or empty)</p>
-
-      <p>The bits 16-24 of black.flags and white.flags give the high and
-      low bits of a revision number in case there are multiple similar
-      games.</p>
-          </p>
-
       
             
        </td>
@@ -4045,11 +4109,11 @@
        </td>
       </tr>
       <tr>
-        <td>flags2</td>
+        <td>komi</td>
         <td>U16</td>
         <td> </td>
         <td>
-      <p>0:11 == komi / 2, 12:14 == high 3 bits of gametype, 15: == sign bit</p>
+      <p>0:11 == komi * 2; 12:15 == no idea, always 1-0-0-0?</p>
       
             
        </td>
@@ -4060,7 +4124,7 @@
       </tr>
       <tr>
         <td>score</td>
-        <td>score16</td>
+        <td>score16_2</td>
         <td> </td>
         <td>
       
@@ -4072,12 +4136,25 @@
        </td>
       </tr>
       <tr>
-        <td>flags3</td>
+        <td>size</td>
         <td>U8</td>
         <td> </td>
         <td>
-
-      <p>0:5 == boardsize; 6: == no idea; 7: == inplay?</p>
+      <p>0:5 == size; 6 no idea; 7 == inprogress</p>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>flags</td>
+        <td>U8</td>
+        <td> </td>
+        <td>
+      <p>No idea. I see many values here.</p>
 
    
             
@@ -4126,6 +4203,46 @@
         <td>CONSTANT</td>
         <td>1 </td>
         <td>
+
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>user</td>
+        <td>user</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>unknown1</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>unknown2</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
    
             
        </td>
@@ -4171,6 +4288,46 @@
         <td>CONSTANT</td>
         <td>1 </td>
         <td>
+
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>user</td>
+        <td>user</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>unknown1</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>unknown2</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
    
             
        </td>
@@ -4203,7 +4360,46 @@
         <td>CONSTANT</td>
         <td>login failed: client version out of date </td>
         <td>
-      ** maybe more following? **
+
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>user</td>
+        <td>user</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>unknown1</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>unknown2</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
    
             
        </td>
@@ -4236,7 +4432,46 @@
         <td>CONSTANT</td>
         <td>login failed: wrong password </td>
         <td>
-      ** maybe more following? **
+
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>user</td>
+        <td>user</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>unknown1</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>unknown2</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
    
             
        </td>
@@ -4269,6 +4504,46 @@
         <td>CONSTANT</td>
         <td>login failed: specified user does not exist </td>
         <td>
+
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>user</td>
+        <td>user</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>unknown1</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>unknown2</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
    
             
        </td>
@@ -4299,7 +4574,47 @@
       <tr>
         <td>message</td>
         <td>CONSTANT</td>
-        <td>login failed: user of same name logged in </td>
+        <td>login failed: other user of same name already exists </td>
+        <td>
+
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>user</td>
+        <td>user</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>unknown1</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>unknown2</td>
+        <td>U16</td>
+        <td> </td>
         <td>
    
             
@@ -6011,7 +6326,9 @@
         <td>flag</td>
         <td> </td>
         <td>
-      Wether more games are available (must be requested manually)
+      <p>Wether more games are available (must be requested manually by
+      another  message with the timestamp set
+      to the timestamp of the <em>first</em> game of this packet.</p>
       
             
        </td>
@@ -6025,6 +6342,7 @@
         <td>game_record</td>
         <td> </td>
         <td>
+      <p>Game records, from oldest to newest.</p>
    
             
        </td>
@@ -6248,7 +6566,7 @@
    <!-- added recently -->
    <h4>
       <a name="S043a"></a>ORIGIN: SERVER;
-      MESSAGE: add_global_challenge</h4>
+      MESSAGE: add_global_challenges</h4>
    NUMERIC TYPE (hex): 043a<p>
       <p>
          Adds or updates a global challenge (open game list).
@@ -6263,24 +6581,8 @@
         <th width="10%">GUARD</th>
       </tr>
       <tr>
-        <td>channel</td>
-        <td>U16</td>
-        <td> </td>
-        <td>
-      <p>
-         The room this game is associated with.
-      </p>
-      
-            
-       </td>
-        <td>
-          <b></b> 
-            
-       </td>
-      </tr>
-      <tr>
-        <td>game</td>
-        <td>game</td>
+        <td>games</td>
+        <td>room_game</td>
         <td> </td>
         <td>
       <p>The game. The "moves" member contains a small number. Probably garbage.</p>
@@ -7061,7 +7363,7 @@
 
    <h4>
       <a name="S440c"></a>ORIGIN: SERVER;
-      MESSAGE: time_win</h4>
+      MESSAGE: out_of_time</h4>
    NUMERIC TYPE (hex): 440c<p>
       <p>Sent when the opponent is out of time and moves, or when the other
       requests <a href="#S0008">userinfo(0008)</a>.</p>
@@ -7092,7 +7394,7 @@
         <td>U8</td>
         <td> </td>
         <td>
-      <p>Colour who won.</p>
+      <p>Colour who ran out of time (lost).</p>
    
             
        </td>

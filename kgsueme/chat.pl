@@ -5,16 +5,48 @@ package chat;
 # waaay cool widget. well... maybe at one point in the future
 
 use Gtk2;
+use Gtk2::Pango;
 
 use Glib::Object::Subclass
    Gtk2::VBox,
    signals => {
       command => {
-         flags       => [qw/run-first/],
-         return_type => undef, # void return
-         param_types => [Glib::Scalar, Glib::Scalar],
+         flags         => [qw/run-last/],
+         return_type   => undef,
+         param_types   => [Glib::Scalar, Glib::Scalar],
+         class_closure => sub { },
+      },
+      tag_event => {
+         flags         => [qw/run-last/],
+         return_type   => undef,
+                          # tag, event, content
+         param_types   => [Glib::String, Gtk2::Gdk::Event, Glib::String],
+         class_closure => \&tag_event,
+      },
+      enter_tag => {
+         flags         => [qw/run-last/],
+         return_type   => undef,
+                          # tag, content
+         param_types   => [Glib::String, Glib::String],
+         class_closure => sub { },
+      },
+      leave_tag => {
+         flags         => [qw/run-last/],
+         return_type   => undef,
+                          # tag, content
+         param_types   => [Glib::String, Glib::String],
+         class_closure => sub { },
       },
    };
+
+sub new {
+   my ($self, %arg) = @_;
+
+   $self = $self->Glib::Object::new;
+   $self->{$_} = delete $arg{$_} for keys %arg;
+
+   $self;
+}
 
 sub INIT_INSTANCE {
    my $self = shift;
@@ -23,10 +55,9 @@ sub INIT_INSTANCE {
 
    {
       my @tags = (
-         [default     => { foreground => "black" }],
+         [default     => { foreground => "black", wrap_mode => "word-char" }],
          [node        => { foreground => "#0000b0", event => 1 }],
          [move        => { foreground => "#0000b0", event => 1 }],
-         #[user        => { foreground => "#0000b0", wrap_mode => "none", event => 1 }],
          [user        => { foreground => "#0000b0", event => 1 }],
          [coord       => { foreground => "#0000b0", event => 1 }],
          [score       => { foreground => "#0000b0", event => 1 }],
@@ -43,7 +74,19 @@ sub INIT_INSTANCE {
          my ($k, $v) = @$_;
          my $tag = new Gtk2::TextTag $k;
          if (delete $v->{event}) {
-            ###
+            $tag->signal_connect (event => sub {
+               my ($tag, $view, $event, $iter) = @_;
+
+               return 0 if $event->type eq "motion-notify";
+               
+               my ($a, $b) = ($iter, $iter->copy);
+               $a->backward_to_tag_toggle ($tag) unless $a->begins_tag ($tag);
+               $b->forward_to_tag_toggle  ($tag) unless $b->ends_tag   ($tag);
+
+               $self->signal_emit (tag_event => $k, $event, $a->get_text ($b));
+
+               1;
+            });
          }
          $tag->set (%$v);
          $tagtable->add ($tag);
@@ -64,10 +107,13 @@ sub INIT_INSTANCE {
    $self->pack_start ($self->{widget}, 1, 1, 0);
 
    $self->{widget}->add ($self->{view} = new_with_buffer Gtk2::TextView $self->{buffer});
-   $self->{view}->set_wrap_mode ("word-char");
-   $self->{view}->set_cursor_visible (0);
-
-   $self->{view}->set_editable (0);
+   $self->{view}->set (
+         wrap_mode      => "word-char",
+         cursor_visible => 0,
+         editable       => 0,
+         tabs           =>
+            (new Gtk2::Pango::TabArray 1, 0, left => 125000), # arbitrary... pango is underfeatured
+   );
 
    $self->{view}->signal_connect (motion_notify_event => sub {
       my ($widget, $event) = @_;
@@ -75,23 +121,32 @@ sub INIT_INSTANCE {
       my $window = $widget->get_window ("text");
       if ($event->window == $window) {
          my ($win, $x, $y, $mask) = $window->get_pointer;
-          #     warn "TAG EVENT @_ ($window, $win, $x, $y, $mask)\n";
-          #gtk_text_view_window_to_buffer_coords (text_view,
-          #                                       GTK_TEXT_WINDOW_TEXT,
-          #                                       text_view->drag_start_x,
-          #                                       text_view->drag_start_y,
-          #                                       &buffer_x,
-          #                                       &buffer_y);
-#
-#          gtk_text_layout_get_iter_at_pixel (text_view->layout,
-#                                             &iter,
-#                                             buffer_x, buffer_y);
-#
-#          gtk_text_view_start_selection_dnd (text_view, &iter, event);
-#          return TRUE;
+         ($x, $y) = $self->{view}->window_to_buffer_coords ("text", $x, $y);
+         my ($iter) = $self->{view}->get_iter_at_location ($x, $y);
+
+         my $tag = ($iter->get_tags)[01];
+         
+         if ($tag) {
+            my ($a, $b) = ($iter, $iter->copy);
+            $a->backward_to_tag_toggle ($tag) unless $a->begins_tag ($tag);
+            $b->forward_to_tag_toggle  ($tag) unless $b->ends_tag   ($tag);
+
+            $self->tag_enterleave ($tag->get ("name"), $a->get_text ($b));
+         } else {
+            $self->tag_enterleave ();
+         }
+
+         1;
       }
       0;
    });
+
+   $self->{view}->signal_connect (leave_notify_event => sub {
+      $self->tag_enterleave ();
+      0;
+   });
+
+   $self->{view}->add_events (qw(leave_notify_mask));
 
    $self->pack_start (($self->{entry} = new Gtk2::Entry), 0, 1, 0);
 
@@ -117,18 +172,42 @@ sub INIT_INSTANCE {
    $self->set_end;
 }
 
-sub do_command {
-   my ($self, $cmd, $arg, %arg) = @_;
+sub tag_enterleave {
+   my ($self, $tag, $content) = @_;
+
+   my $cur = $self->{current_tag};
+
+   if ($cur->[0] != $tag || $cur->[1] ne $content) {
+      $self->signal_emit (leave_tag => @$cur) if $cur->[0];
+      $self->{current_tag} = $cur = [$tag, $content];
+      $self->signal_emit (enter_tag => @$cur) if $cur->[0];
+   }
+}
+
+sub tag_event {
+   my ($self, $tag, $event, $content) = @_;
+
+   return unless $self->{app};
+
+   if ($tag eq "user" && $event->type eq "button-release") {
+      if ($event->button == 1) {
+         $content =~ /^([^\x20\xa0]+)/ or return;
+         $self->{app}->open_user (name => $1);
+      }
+   }
 }
 
 sub set_end {
    my ($self) = @_;
 
-   # this is probably also a hack...
+   # we do it both. the first scroll avoids flickering,
+   # the second ensures that we scroll -- gtk+ often ignores
+   # the first scroll_to_mark ...
+   $self->{view}->scroll_to_mark ($self->{end}, 0, 0, 0, 0);
    $self->{idle} ||= add Glib::Idle sub {
-      $self->{view}->scroll_to_iter ($self->{buffer}->get_end_iter, 0, 0, 0, 0)
-         if $self->{view};
+      $self->{view}->scroll_to_mark ($self->{end}, 0, 0, 0, 0);
       delete $self->{idle};
+      0;
    };
 }
 

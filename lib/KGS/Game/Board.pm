@@ -141,7 +141,6 @@ sub interpret_path {
                   push @capture, $self->capture ($opp, $x, $y-1) if $y > 0            && $board->[$x][$y-1] & $opp;
                   push @capture, $self->capture ($opp, $x, $y+1) if $y < $self->{max} && $board->[$x][$y+1] & $opp;
 
-
                   # remove captured stones
                   $self->{captures}[$self->{last}] += @capture;
                   $self->{board}[$_->[0]][$_->[1]] &= ~(MARK_B | MARK_W | MARK_MOVE)

@@ -7,6 +7,8 @@ use base KGS::Listener::User;
 use Glib::Object::Subclass
    Gtk2::Window;
 
+use Gtk2::SimpleList;
+
 sub new {
    my ($self, %arg) = @_;
    $self = $self->Glib::Object::new;
@@ -17,21 +19,21 @@ sub new {
    $self->send (notify_add => name => $self->{name})
       unless (lc $self->{name}) eq (lc $self->{app}{name});
 
-   gtk::state $self, "user::window", undef, window_size => [400, 300];
+   gtk::state $self, "user::window", undef, window_size => [500, 500];
 
    $self->event_name;
 
    $self->signal_connect (destroy => sub { %{$_[0]} = () });
-   $self->signal_connect (delete_event => sub { $self->destroy; 1 });
+   #$self->signal_connect (delete_event => sub { $self->destroy; 1 });
+   $self->signal_connect (delete_event => sub { $self->hide; 1 });
 
    my $notebook = new Gtk2::Notebook;
 
    $notebook->signal_connect (switch_page => sub {
       my ($notebook, undef, $page) = @_;
 
-      $self->userinfo    if $page == 1;
-      $self->game_record if $page == 2;
-      $self->usergraph   if $page == 3;
+      $self->game_record if $page == 1;
+      $self->usergraph   if $page == 2;
    });
 
    $self->add ($notebook);
@@ -42,18 +44,55 @@ sub new {
       $self->{app}->do_command ($chat, $cmd, $arg, user => $self);
    });
 
+   $self->{info_inlay} = $self->{chat}->new_switchable_inlay("Info:", sub { $self->draw_info(@_) }, 1);
+
    $notebook->append_page ($self->{chat}, (new_with_mnemonic Gtk2::Label "_Chat"));
 
-   $self->{page_userinfo} = new Gtk2::Table 3, 5, 0;
-   $notebook->append_page ($self->{page_userinfo}, (new_with_mnemonic Gtk2::Label "_Info"));
+   $self->{page_record} = new Gtk2::ScrolledWindow;
+   $self->{page_record}->set_policy ("automatic", "always");
+   $self->{page_record}->add ($self->{record_list} = Gtk2::SimpleList->new(
+      Time  => "text",
+      White => "text",
+      Black => "text",
+      Size  => "int",
+      H     => "int",
+      Komi  => "text",
+      Score => "text",
+   ));
+   my $i = 0;
+   $_->set_sort_column_id ($i++) for $self->{record_list}->get_columns;
 
-   $self->{page_record} = new Gtk2::VBox;
    $notebook->append_page ($self->{page_record}, (new_with_mnemonic Gtk2::Label "_Record"));
 
    $self->{page_graph} = new Gtk2::Curve;
    $notebook->append_page ($self->{page_graph}, (new_with_mnemonic Gtk2::Label "_Graph"));
 
+   $self->userinfo;
+
    $self;
+}
+
+sub draw_info {
+   my ($self, $inlay) = @_;
+   return unless defined $self->{userinfo};
+   $inlay->append_text (
+      "<infoblock>"
+      . "\n<leader>Realname:</leader> "   . (util::toxml $self->{userinfo}{realname})
+      . "\n<leader>Email:</leader> "      . (util::toxml $self->{userinfo}{email})
+      . "\n<leader>Flags:</leader> "      . (util::toxml $self->{userinfo}{user}->flags_string)
+      . "\n<leader>Rank:</leader> "       . (util::toxml $self->{userinfo}{user}->rank_string)
+      . "\n<leader>Registered:</leader> " . (util::toxml util::date_string($self->{userinfo}{regdate}))
+      . "\n<leader>Last Login:</leader> " . (util::toxml util::date_string($self->{userinfo}{lastlogin}))
+      . "\n<leader>Comment:</leader>\n"   . (util::toxml $self->{userinfo}{info})
+      . "\n<leader>Picture:</leader>"
+      . "</infoblock>\n"
+   );
+   if ($self->{userinfo}{user}->has_pic) {
+      $self->{app}->userpic ($self->{name}, sub {
+         $inlay->append_widget(gtk::image_from_data $_[0])
+            if $_[0];
+      });
+   }
 }
 
 sub join {
@@ -65,40 +104,29 @@ sub join {
 sub event_name {
    my ($self) = @_;
 
-   $self->set_title("KGS User $self->{name}");
+   $self->set_title ("KGS User $self->{name}");
 }
 
 sub event_userinfo {
    my ($self) = @_;
-
-   my $ui = $self->{page_userinfo};
-
-   $ui->attach_defaults ((new Gtk2::Label "Name"), 0, 1, 0, 1);
-   $ui->attach_defaults ((new Gtk2::Label "Email"), 0, 1, 1, 2);
-   $ui->attach_defaults ((new Gtk2::Label "Registered"), 0, 1, 2, 3);
-   $ui->attach_defaults ((new Gtk2::Label "Last Login"), 0, 1, 3, 4);
-
-   $ui->attach_defaults ((new Gtk2::Label $self->{userinfo}{realname}), 1, 2, 0, 1);
-   $ui->attach_defaults ((new Gtk2::Label $self->{userinfo}{email}), 1, 2, 1, 2);
-   $ui->attach_defaults ((new Gtk2::Label $self->{userinfo}{regdate}), 1, 2, 2, 3);
-   $ui->attach_defaults ((new Gtk2::Label $self->{userinfo}{lastlogin}), 1, 2, 3, 4);
-
-   if ($self->{userinfo}{user}->has_pic) {
-      $self->{app}->userpic ($self->{name}, sub {
-         if ($_[0]) {
-            $ui->attach_defaults ((gtk::image_from_data $_[0]), 2, 3, 0, 4);
-            $ui->show_all;
-         }
-      });
-   }
-
-   $ui->attach_defaults ((new Gtk2::Label $self->{userinfo}{info}), 0, 2, 4, 5);
-
-   $ui->show_all;
+   $self->{info_inlay}->refresh;
 }
 
 sub event_game_record {
    my ($self) = @_;
+
+   for (@{$self->{game_record}}) {
+      push @{$self->{record_list}->{data}}, 
+         [
+            util::date_string $_->{timestamp},
+            $_->{white}->as_string, 
+            $_->{black}->as_string, 
+            $_->size, 
+            (sprintf "%.1d", $_->handicap),
+            $_->komi,
+            $_->score_string,
+         ];
+   }
 }
 
 sub event_usergraph {
@@ -117,10 +145,7 @@ sub event_usergraph {
 sub event_msg {
    my ($self, $name, $message) = @_;
 
-   $message =~ s/&/&amp;/g;
-   $message =~ s/</&lt;/g;
-
-   $self->{chat}->append_text ("\n<user>$name</user>: $message");
+   $self->{chat}->append_text ("\n<user>$name</user>: " . util::toxml $message);
 }
 
 sub destroy {

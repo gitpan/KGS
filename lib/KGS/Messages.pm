@@ -9,8 +9,6 @@
 
 package KGS::Messages;
 
-use Gtk2::GoBoard::Constants; # for MARK_xyz
-
 use strict;
 
 our %type;
@@ -22,9 +20,13 @@ our %enc_server; # encode messages received from server
 
 {
 
+use Gtk2::GoBoard::Constants; # for MARK_xyz
+use Math::BigInt ();
+
 my $data; # stores currently processed decoding/encoding packet
 
 sub _set_data($) { $data = shift } # for debugging or special apps only
+sub _get_data() { $data } # for debugging or special apps only
 
 # primitive enc/decoders
 
@@ -43,8 +45,9 @@ sub dec_U32 {
 }
 
 sub dec_U64 {
+   # do NOT use Math::BigInt here.
    my ($lo, $hi) = (dec_U32, dec_U32);
-   $lo + $hi * 2**32;
+   $hi * 2**32 + $lo;
 }
 
 sub dec_I8 {
@@ -101,8 +104,10 @@ sub enc_U32 {
 }
 
 sub enc_U64 {
-   enc_U32 $_[0] & 0xffffffff;
-   enc_U32 +($_[0] >> 32) & 0xffffffff;
+   my $i = new Math::BigInt $_[0];
+
+   enc_U32 $i & 0xffffffff;
+   enc_U32 $i >> 32;
 }
 
 sub enc_I8 {
@@ -137,11 +142,10 @@ sub enc_CONSTANT {
 }
 
 sub enc_password {
-   require Math::BigInt; # I insist on 32-bit-perl.. should use C
    # $hash must be 64 bit
    my $hash = new Math::BigInt;
    $hash = $hash * 1055 + ord for split //, $_[0];
-   enc_U64 $hash;
+   enc_U64 $hash & new Math::BigInt "0xffffffffffffffff";
 }
 
 sub enc_HEX {
@@ -253,27 +257,35 @@ sub enc_flag {
    enc_U8 $_[0] * 1;
 }
 
-sub dec_komi16 {
+sub dec_komi16_2 {
    (1 / 2) * dec_I16;
 }
 
-sub enc_komi16 {
+sub enc_komi16_2 {
    enc_I16 $_[0] * 2;
 }
 
-sub dec_komi32 {
+sub dec_komi16_4 {
+   (1 / 4) * dec_I16;
+}
+
+sub enc_komi16_4 {
+   enc_I16 $_[0] * 4;
+}
+
+sub dec_komi32_2 {
    (1 / 2) * dec_I32;
 }
 
-sub enc_komi32 {
+sub enc_komi32_2 {
    enc_I32 $_[0] * 2;
 }
 
-sub dec_komi324 {
+sub dec_komi32_4 {
    (1 / 4) * dec_I32;
 }
 
-sub enc_komi324 {
+sub enc_komi32_4 {
    enc_I32 $_[0] * 4;
 }
 
@@ -285,27 +297,35 @@ sub enc_result {
    enc_I32 $_[0] * 2;
 }
 
-sub dec_score16 {
+sub dec_score16_2 {
+   (1 / 2) * dec_I16;
+}
+
+sub enc_score16_2 {
+   enc_I16 $_[0] * 2;
+}
+
+sub dec_score16_4 {
    (1 / 4) * dec_I16;
 }
 
-sub enc_score16 {
+sub enc_score16_4 {
    enc_I16 $_[0] * 4;
 }
 
-sub dec_score32 {
+sub dec_score32_4 {
    (1 / 4) * dec_I32;
 }
 
-sub enc_score32 {
+sub enc_score32_4 {
    enc_I32 $_[0] * 4;
 }
 
-sub dec_score1000 {
+sub dec_score32_1000 {
    (1 / 1000) * dec_I32;
 }
 
-sub enc_score1000 {
+sub enc_score32_1000 {
    enc_I32 $_[0] * 1000;
 }
 
@@ -381,7 +401,7 @@ sub dec_rules {
    $r->{ruleset} = dec_U8 q||;
    $r->{size} = dec_U8 q||;
    $r->{handicap} = dec_U8 q||;
-   $r->{komi} = dec_komi16 q||;
+   $r->{komi} = dec_komi16_2 q||;
    $r->{timesys} = dec_U8 q||;
    $r->{time} = dec_U32 q||;
    $r->{interval} = dec_U32 q||;
@@ -396,7 +416,7 @@ sub enc_rules {
    enc_U8 defined $_[0]{ruleset} ? $_[0]{ruleset} : (q||);
    enc_U8 defined $_[0]{size} ? $_[0]{size} : (q||);
    enc_U8 defined $_[0]{handicap} ? $_[0]{handicap} : (q||);
-   enc_komi16 defined $_[0]{komi} ? $_[0]{komi} : (q||);
+   enc_komi16_2 defined $_[0]{komi} ? $_[0]{komi} : (q||);
    enc_U8 defined $_[0]{timesys} ? $_[0]{timesys} : (q||);
    enc_U32 defined $_[0]{time} ? $_[0]{time} : (q||);
    enc_U32 defined $_[0]{interval} ? $_[0]{interval} : (q||);
@@ -443,12 +463,12 @@ sub dec_game {
    $r->{owner} = dec_user q||;
    $r->{size} = dec_U8 q||;
    $r->{handicap} = dec_I8 q||;
-   $r->{komi} = dec_komi16 q||;
+   $r->{komi} = dec_komi16_2 q||;
    $r->{moves} = dec_I16 q||;
    $r->{flags} = dec_U16 q||;
    $r->{observers} = dec_U32 q||;
    $r->{saved} = dec_flag q||;
-   $r->{notes} = dec_STRING q||
+   $r->{notes} = dec_ZSTRING q||
       if ($r->{handicap} < 0);
    bless $r, KGS::Game::;
    
@@ -464,12 +484,26 @@ sub enc_game {
    enc_user defined $_[0]{owner} ? $_[0]{owner} : (q||);
    enc_U8 defined $_[0]{size} ? $_[0]{size} : (q||);
    enc_I8 defined $_[0]{handicap} ? $_[0]{handicap} : (q||);
-   enc_komi16 defined $_[0]{komi} ? $_[0]{komi} : (q||);
+   enc_komi16_2 defined $_[0]{komi} ? $_[0]{komi} : (q||);
    enc_I16 defined $_[0]{moves} ? $_[0]{moves} : (q||);
    enc_U16 defined $_[0]{flags} ? $_[0]{flags} : (q||);
    enc_U32 defined $_[0]{observers} ? $_[0]{observers} : (q||);
    enc_flag defined $_[0]{saved} ? $_[0]{saved} : (q||);
-   enc_STRING defined $_[0]{notes} ? $_[0]{notes} : (q||);
+   enc_ZSTRING defined $_[0]{notes} ? $_[0]{notes} : (q||);
+}
+
+sub dec_room_game {
+   my $r = {};
+   
+   $r->{channel} = dec_U16 q||;
+   $r->{game} = dec_game q||;
+   $r;
+}
+
+sub enc_room_game {
+   
+   enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
+   enc_game defined $_[0]{game} ? $_[0]{game} : (q||);
 }
 
 sub dec_room_obs {
@@ -517,12 +551,12 @@ sub enc_room {
 sub dec_scorevalues {
    my $r = {};
    
-   $r->{score} = dec_score32 q||;
+   $r->{score} = dec_score32_4 q||;
    $r->{territory} = dec_U32 q||;
    $r->{captures} = dec_U32 q||;
    $r->{i3} = dec_U32 q||;
    $r->{f2} = dec_U32 q||;
-   $r->{komi} = dec_komi324 q||;
+   $r->{komi} = dec_komi32_4 q||;
    $r->{i4} = dec_U32 q||;
    bless $r, KGS::Score::;
    
@@ -531,12 +565,12 @@ sub dec_scorevalues {
 
 sub enc_scorevalues {
    
-   enc_score32 defined $_[0]{score} ? $_[0]{score} : (q||);
+   enc_score32_4 defined $_[0]{score} ? $_[0]{score} : (q||);
    enc_U32 defined $_[0]{territory} ? $_[0]{territory} : (q||);
    enc_U32 defined $_[0]{captures} ? $_[0]{captures} : (q||);
    enc_U32 defined $_[0]{i3} ? $_[0]{i3} : (q||);
    enc_U32 defined $_[0]{f2} ? $_[0]{f2} : (q||);
-   enc_komi324 defined $_[0]{komi} ? $_[0]{komi} : (q||);
+   enc_komi32_4 defined $_[0]{komi} ? $_[0]{komi} : (q||);
    enc_U32 defined $_[0]{i4} ? $_[0]{i4} : (q||);
 }
 
@@ -544,13 +578,16 @@ sub dec_game_record {
    my $r = {};
    
    $r->{timestamp} = dec_timestamp q||;
-   $r->{flags1} = dec_U8 q||;
+   $r->{type} = dec_U8 q||;
+   $r->{handicap} = dec_U8 q||;
+   $r->{revision} = dec_U16 q||;
    $r->{black} = dec_user q||;
    $r->{white} = dec_user q||;
    $r->{owner} = dec_user q||;
-   $r->{flags2} = dec_U16 q||;
-   $r->{score} = dec_score16 q||;
-   $r->{flags3} = dec_U8 q||;
+   $r->{komi} = dec_U16 q||;
+   $r->{score} = dec_score16_2 q||;
+   $r->{size} = dec_U8 q||;
+   $r->{flags} = dec_U8 q||;
    bless $r, KGS::GameRecord::;
    
    $r;
@@ -559,13 +596,16 @@ sub dec_game_record {
 sub enc_game_record {
    
    enc_timestamp defined $_[0]{timestamp} ? $_[0]{timestamp} : (q||);
-   enc_U8 defined $_[0]{flags1} ? $_[0]{flags1} : (q||);
+   enc_U8 defined $_[0]{type} ? $_[0]{type} : (q||);
+   enc_U8 defined $_[0]{handicap} ? $_[0]{handicap} : (q||);
+   enc_U16 defined $_[0]{revision} ? $_[0]{revision} : (q||);
    enc_user defined $_[0]{black} ? $_[0]{black} : (q||);
    enc_user defined $_[0]{white} ? $_[0]{white} : (q||);
    enc_user defined $_[0]{owner} ? $_[0]{owner} : (q||);
-   enc_U16 defined $_[0]{flags2} ? $_[0]{flags2} : (q||);
-   enc_score16 defined $_[0]{score} ? $_[0]{score} : (q||);
-   enc_U8 defined $_[0]{flags3} ? $_[0]{flags3} : (q||);
+   enc_U16 defined $_[0]{komi} ? $_[0]{komi} : (q||);
+   enc_score16_2 defined $_[0]{score} ? $_[0]{score} : (q||);
+   enc_U8 defined $_[0]{size} ? $_[0]{size} : (q||);
+   enc_U8 defined $_[0]{flags} ? $_[0]{flags} : (q||);
 }
 
 
@@ -595,7 +635,7 @@ sub dec_TREE {
          push @r, [set_current => dec_I32];
 
       } elsif ($type == 34) {
-         push @r, [score => dec_U8, dec_score1000];
+         push @r, [score => dec_U8, dec_score32_1000];
 
       } elsif ($type == 29) {
          push @r, [type_29 => dec_ZSTRING];
@@ -774,7 +814,7 @@ sub enc_TREE {
 # login
 $dec_client{0x0000} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "login";
    
    $r->{ver_major} = dec_U32 q|2|;
@@ -786,6 +826,7 @@ $dec_client{0x0000} = sub {
    $r->{_unknown3} = dec_U16 q|0|;
    $r->{locale} = dec_locale q|"en_US"|;
    $r->{clientver} = dec_DATA q|"1.4.2_03:Swing app:Sun Microsystems Inc."|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{login} = sub {
@@ -807,10 +848,11 @@ $enc_client{login} = sub {
 # req_userinfo
 $dec_client{0x0007} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "req_userinfo";
    
    $r->{name} = dec_username q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{req_userinfo} = sub {
@@ -824,7 +866,7 @@ $enc_client{req_userinfo} = sub {
 # update_userinfo
 $dec_client{0x0007} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "update_userinfo";
    
    $r->{setpass} = dec_flag q||;
@@ -835,6 +877,7 @@ $dec_client{0x0007} = sub {
    $r->{homepage} = dec_url q||;
    $r->{_unused} = dec_U64 q|0|;
    $r->{_unused} = dec_U64 q|0|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{update_userinfo} = sub {
@@ -855,12 +898,13 @@ $enc_client{update_userinfo} = sub {
 # msg_chat
 $dec_client{0x0013} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "msg_chat";
    
    $r->{name} = dec_username q||;
    $r->{name2} = dec_username q||;
    $r->{message} = dec_STRING q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{msg_chat} = sub {
@@ -876,9 +920,10 @@ $enc_client{msg_chat} = sub {
 # req_stats
 $dec_client{0x0014} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "req_stats";
    
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{req_stats} = sub {
@@ -891,9 +936,10 @@ $enc_client{req_stats} = sub {
 # idle_reset
 $dec_client{0x0016} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "idle_reset";
    
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{idle_reset} = sub {
@@ -906,9 +952,10 @@ $enc_client{idle_reset} = sub {
 # ping
 $dec_client{0x001d} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "ping";
    
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{ping} = sub {
@@ -921,10 +968,11 @@ $enc_client{ping} = sub {
 # req_usergraph
 $dec_client{0x001e} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "req_usergraph";
    
    $r->{name} = dec_username q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{req_usergraph} = sub {
@@ -938,10 +986,11 @@ $enc_client{req_usergraph} = sub {
 # req_pic
 $dec_client{0x0021} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "req_pic";
    
    $r->{name} = dec_username q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{req_pic} = sub {
@@ -955,11 +1004,12 @@ $enc_client{req_pic} = sub {
 # upload_pic
 $dec_client{0x0021} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "upload_pic";
    
    $r->{name} = dec_username q||;
    $r->{data} = dec_DATA q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{upload_pic} = sub {
@@ -974,12 +1024,13 @@ $enc_client{upload_pic} = sub {
 # send_memo
 $dec_client{0x0023} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "send_memo";
    
    $r->{name} = dec_username q||;
    $r->{cid} = dec_CLIENTID16 q||;
    $r->{msg} = dec_STRING q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{send_memo} = sub {
@@ -995,9 +1046,10 @@ $enc_client{send_memo} = sub {
 # delete_memos
 $dec_client{0x0024} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "delete_memos";
    
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{delete_memos} = sub {
@@ -1010,10 +1062,11 @@ $enc_client{delete_memos} = sub {
 # gnotice
 $dec_client{0x0100} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "gnotice";
    
    $r->{notice} = dec_STRING q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{gnotice} = sub {
@@ -1027,10 +1080,11 @@ $enc_client{gnotice} = sub {
 # notify_add
 $dec_client{0x0200} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "notify_add";
    
    $r->{name} = dec_username q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{notify_add} = sub {
@@ -1044,10 +1098,11 @@ $enc_client{notify_add} = sub {
 # notify_del
 $dec_client{0x0201} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "notify_del";
    
    $r->{name} = dec_username q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{notify_del} = sub {
@@ -1061,10 +1116,11 @@ $enc_client{notify_del} = sub {
 # list_rooms
 $dec_client{0x0318} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "list_rooms";
    
    $r->{group} = dec_U8 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{list_rooms} = sub {
@@ -1078,7 +1134,7 @@ $enc_client{list_rooms} = sub {
 # new_room
 $dec_client{0x031a} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "new_room";
    
    $r->{name} = dec_username q||;
@@ -1090,6 +1146,7 @@ $dec_client{0x031a} = sub {
    $r->{name} = dec_ZSTRING q||;
    $r->{description} = dec_ZSTRING q||;
    $r->{flags} = dec_U8 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{new_room} = sub {
@@ -1111,10 +1168,11 @@ $enc_client{new_room} = sub {
 # req_upd_rooms
 $dec_client{0x031b} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "req_upd_rooms";
    
    $r->{channel} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{req_upd_rooms} = sub {
@@ -1128,11 +1186,12 @@ $enc_client{req_upd_rooms} = sub {
 # req_game_record
 $dec_client{0x0413} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "req_game_record";
    
    $r->{name} = dec_username q||;
    $r->{timestamp} = dec_timestamp q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{req_game_record} = sub {
@@ -1147,11 +1206,12 @@ $enc_client{req_game_record} = sub {
 # join_room
 $dec_client{0x4300} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "join_room";
    
    $r->{channel} = dec_U16 q||;
    $r->{user} = dec_user q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{join_room} = sub {
@@ -1166,12 +1226,13 @@ $enc_client{join_room} = sub {
 # msg_room
 $dec_client{0x4301} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "msg_room";
    
    $r->{channel} = dec_U16 q||;
    $r->{name} = dec_username q||;
    $r->{message} = dec_STRING q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{msg_room} = sub {
@@ -1187,11 +1248,12 @@ $enc_client{msg_room} = sub {
 # part_room
 $dec_client{0x4302} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "part_room";
    
    $r->{channel} = dec_U16 q||;
    $r->{name} = dec_username q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{part_room} = sub {
@@ -1206,7 +1268,7 @@ $enc_client{part_room} = sub {
 # new_game
 $dec_client{0x4305} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "new_game";
    
    $r->{channel} = dec_U16 q||;
@@ -1215,6 +1277,7 @@ $dec_client{0x4305} = sub {
    $r->{flags} = dec_U8 q||;
    $r->{rules} = dec_rules q||;
    $r->{notes} = dec_STRING q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{new_game} = sub {
@@ -1233,13 +1296,14 @@ $enc_client{new_game} = sub {
 # load_game
 $dec_client{0x430a} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "load_game";
    
    $r->{channel} = dec_U16 q||;
    $r->{timestamp} = dec_timestamp q||;
    $r->{user} = dec_username q||;
    $r->{flags} = dec_U8 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{load_game} = sub {
@@ -1256,10 +1320,11 @@ $enc_client{load_game} = sub {
 # req_games
 $dec_client{0x430b} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "req_games";
    
    $r->{channel} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{req_games} = sub {
@@ -1273,10 +1338,11 @@ $enc_client{req_games} = sub {
 # req_desc
 $dec_client{0x4319} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "req_desc";
    
    $r->{channel} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{req_desc} = sub {
@@ -1290,7 +1356,7 @@ $enc_client{req_desc} = sub {
 # challenge
 $dec_client{0x4400} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "challenge";
    
    $r->{channel} = dec_U16 q||;
@@ -1299,6 +1365,7 @@ $dec_client{0x4400} = sub {
    $r->{gametype} = dec_U8 q||;
    $r->{cid} = dec_CLIENTID8 q||;
    $r->{rules} = dec_rules q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{challenge} = sub {
@@ -1317,11 +1384,12 @@ $enc_client{challenge} = sub {
 # join_game
 $dec_client{0x4403} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "join_game";
    
    $r->{channel} = dec_U16 q||;
    $r->{user} = dec_user q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{join_game} = sub {
@@ -1336,11 +1404,12 @@ $enc_client{join_game} = sub {
 # part_game
 $dec_client{0x4404} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "part_game";
    
    $r->{channel} = dec_U16 q||;
    $r->{name} = dec_username q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{part_game} = sub {
@@ -1355,11 +1424,12 @@ $enc_client{part_game} = sub {
 # set_tree
 $dec_client{0x4405} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "set_tree";
    
    $r->{channel} = dec_U16 q||;
    $r->{tree} = dec_TREE q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{set_tree} = sub {
@@ -1374,11 +1444,12 @@ $enc_client{set_tree} = sub {
 # upd_tree
 $dec_client{0x4406} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "upd_tree";
    
    $r->{channel} = dec_U16 q||;
    $r->{tree} = dec_TREE q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{upd_tree} = sub {
@@ -1393,13 +1464,14 @@ $enc_client{upd_tree} = sub {
 # mark_dead
 $dec_client{0x4407} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "mark_dead";
    
    $r->{channel} = dec_U16 q||;
    $r->{x} = dec_U8 q||;
    $r->{y} = dec_U8 q||;
    $r->{dead} = dec_flag q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{mark_dead} = sub {
@@ -1416,11 +1488,12 @@ $enc_client{mark_dead} = sub {
 # get_tree
 $dec_client{0x4408} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "get_tree";
    
    $r->{channel} = dec_U16 q||;
    $r->{node} = dec_U32 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{get_tree} = sub {
@@ -1435,11 +1508,12 @@ $enc_client{get_tree} = sub {
 # game_done
 $dec_client{0x440a} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "game_done";
    
    $r->{channel} = dec_U16 q||;
    $r->{id} = dec_U32 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{game_done} = sub {
@@ -1454,11 +1528,12 @@ $enc_client{game_done} = sub {
 # claim_win
 $dec_client{0x440c} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "claim_win";
    
    $r->{channel} = dec_U16 q||;
    $r->{player} = dec_U8  q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{claim_win} = sub {
@@ -1473,12 +1548,13 @@ $enc_client{claim_win} = sub {
 # add_time
 $dec_client{0x440d} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "add_time";
    
    $r->{channel} = dec_U16 q||;
    $r->{time} = dec_U32 q||;
    $r->{player} = dec_U8 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{add_time} = sub {
@@ -1494,10 +1570,11 @@ $enc_client{add_time} = sub {
 # req_undo
 $dec_client{0x440e} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "req_undo";
    
    $r->{channel} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{req_undo} = sub {
@@ -1511,10 +1588,11 @@ $enc_client{req_undo} = sub {
 # grant_undo
 $dec_client{0x440f} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "grant_undo";
    
    $r->{channel} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{grant_undo} = sub {
@@ -1528,11 +1606,12 @@ $enc_client{grant_undo} = sub {
 # resign_game
 $dec_client{0x4410} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "resign_game";
    
    $r->{channel} = dec_U16 q||;
    $r->{player} = dec_U8 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{resign_game} = sub {
@@ -1547,11 +1626,12 @@ $enc_client{resign_game} = sub {
 # set_teacher
 $dec_client{0x441a} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "set_teacher";
    
    $r->{channel} = dec_U16 q||;
    $r->{name} = dec_username q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{set_teacher} = sub {
@@ -1566,12 +1646,13 @@ $enc_client{set_teacher} = sub {
 # allow_user
 $dec_client{0x4422} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "allow_user";
    
    $r->{channel} = dec_U16 q||;
    $r->{othername} = dec_username q||;
    $r->{name} = dec_username q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{allow_user} = sub {
@@ -1587,11 +1668,12 @@ $enc_client{allow_user} = sub {
 # set_privacy
 $dec_client{0x4423} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "set_privacy";
    
    $r->{channel} = dec_U16 q||;
    $r->{private} = dec_flag q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{set_privacy} = sub {
@@ -1606,12 +1688,13 @@ $enc_client{set_privacy} = sub {
 # game_move
 $dec_client{0x4427} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "game_move";
    
    $r->{channel} = dec_U16 q||;
    $r->{x} = dec_U8 q||;
    $r->{y} = dec_U8 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{game_move} = sub {
@@ -1627,7 +1710,7 @@ $enc_client{game_move} = sub {
 # reject_challenge
 $dec_client{0x4429} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "reject_challenge";
    
    $r->{channel} = dec_U16 q||;
@@ -1635,6 +1718,7 @@ $dec_client{0x4429} = sub {
    $r->{gametype} = dec_U8 q||;
    $r->{cid} = dec_CLIENTID8 q||;
    $r->{rules} = dec_rules q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{reject_challenge} = sub {
@@ -1652,11 +1736,12 @@ $enc_client{reject_challenge} = sub {
 # more_comments
 $dec_client{0x442d} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "more_comments";
    
    $r->{channel} = dec_U16 q||;
    $r->{node} = dec_U32 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{more_comments} = sub {
@@ -1671,10 +1756,11 @@ $enc_client{more_comments} = sub {
 # save_game
 $dec_client{0x442e} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "save_game";
    
    $r->{channel} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{save_game} = sub {
@@ -1688,10 +1774,11 @@ $enc_client{save_game} = sub {
 # req_result
 $dec_client{0x4433} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "req_result";
    
    $r->{channel} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{req_result} = sub {
@@ -1705,11 +1792,12 @@ $enc_client{req_result} = sub {
 # set_quiet
 $dec_client{0x4434} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "set_quiet";
    
    $r->{channel} = dec_U16 q||;
    $r->{quiet} = dec_flag q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{set_quiet} = sub {
@@ -1724,11 +1812,12 @@ $enc_client{set_quiet} = sub {
 # msg_game
 $dec_client{0x4436} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "msg_game";
    
    $r->{channel} = dec_U16 q||;
    $r->{message} = dec_STRING q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{msg_game} = sub {
@@ -1743,9 +1832,10 @@ $enc_client{msg_game} = sub {
 # quit
 $dec_client{0xffff} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "quit";
    
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_client{quit} = sub {
@@ -1758,11 +1848,15 @@ $enc_client{quit} = sub {
 # login
 $dec_server{0x0001} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "login";
    
    $r->{message} = dec_CONSTANT q|login successful|;
    $r->{success} = dec_CONSTANT q|1|;
+   $r->{user} = dec_user q||;
+   $r->{unknown1} = dec_U16 q||;
+   $r->{unknown2} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{login} = sub {
@@ -1771,17 +1865,24 @@ $enc_server{login} = sub {
    
    enc_CONSTANT defined $_[0]{message} ? $_[0]{message} : (q|login successful|);
    enc_CONSTANT defined $_[0]{success} ? $_[0]{success} : (q|1|);
+   enc_user defined $_[0]{user} ? $_[0]{user} : (q||);
+   enc_U16 defined $_[0]{unknown1} ? $_[0]{unknown1} : (q||);
+   enc_U16 defined $_[0]{unknown2} ? $_[0]{unknown2} : (q||);
    $data;
 };
 
 # login
 $dec_server{0x0002} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "login";
    
    $r->{message} = dec_CONSTANT q|login successful: client version is outdated.|;
    $r->{success} = dec_CONSTANT q|1|;
+   $r->{user} = dec_user q||;
+   $r->{unknown1} = dec_U16 q||;
+   $r->{unknown2} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{login} = sub {
@@ -1790,16 +1891,23 @@ $enc_server{login} = sub {
    
    enc_CONSTANT defined $_[0]{message} ? $_[0]{message} : (q|login successful: client version is outdated.|);
    enc_CONSTANT defined $_[0]{success} ? $_[0]{success} : (q|1|);
+   enc_user defined $_[0]{user} ? $_[0]{user} : (q||);
+   enc_U16 defined $_[0]{unknown1} ? $_[0]{unknown1} : (q||);
+   enc_U16 defined $_[0]{unknown2} ? $_[0]{unknown2} : (q||);
    $data;
 };
 
 # login
 $dec_server{0x0003} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "login";
    
    $r->{message} = dec_CONSTANT q|login failed: client version out of date|;
+   $r->{user} = dec_user q||;
+   $r->{unknown1} = dec_U16 q||;
+   $r->{unknown2} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{login} = sub {
@@ -1807,16 +1915,23 @@ $enc_server{login} = sub {
    enc_U16 0x0003;
    
    enc_CONSTANT defined $_[0]{message} ? $_[0]{message} : (q|login failed: client version out of date|);
+   enc_user defined $_[0]{user} ? $_[0]{user} : (q||);
+   enc_U16 defined $_[0]{unknown1} ? $_[0]{unknown1} : (q||);
+   enc_U16 defined $_[0]{unknown2} ? $_[0]{unknown2} : (q||);
    $data;
 };
 
 # login
 $dec_server{0x0004} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "login";
    
    $r->{message} = dec_CONSTANT q|login failed: wrong password|;
+   $r->{user} = dec_user q||;
+   $r->{unknown1} = dec_U16 q||;
+   $r->{unknown2} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{login} = sub {
@@ -1824,16 +1939,23 @@ $enc_server{login} = sub {
    enc_U16 0x0004;
    
    enc_CONSTANT defined $_[0]{message} ? $_[0]{message} : (q|login failed: wrong password|);
+   enc_user defined $_[0]{user} ? $_[0]{user} : (q||);
+   enc_U16 defined $_[0]{unknown1} ? $_[0]{unknown1} : (q||);
+   enc_U16 defined $_[0]{unknown2} ? $_[0]{unknown2} : (q||);
    $data;
 };
 
 # login
 $dec_server{0x0005} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "login";
    
    $r->{message} = dec_CONSTANT q|login failed: specified user does not exist|;
+   $r->{user} = dec_user q||;
+   $r->{unknown1} = dec_U16 q||;
+   $r->{unknown2} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{login} = sub {
@@ -1841,30 +1963,40 @@ $enc_server{login} = sub {
    enc_U16 0x0005;
    
    enc_CONSTANT defined $_[0]{message} ? $_[0]{message} : (q|login failed: specified user does not exist|);
+   enc_user defined $_[0]{user} ? $_[0]{user} : (q||);
+   enc_U16 defined $_[0]{unknown1} ? $_[0]{unknown1} : (q||);
+   enc_U16 defined $_[0]{unknown2} ? $_[0]{unknown2} : (q||);
    $data;
 };
 
 # login
 $dec_server{0x0006} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "login";
    
-   $r->{message} = dec_CONSTANT q|login failed: user of same name logged in|;
+   $r->{message} = dec_CONSTANT q|login failed: other user of same name already exists|;
+   $r->{user} = dec_user q||;
+   $r->{unknown1} = dec_U16 q||;
+   $r->{unknown2} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{login} = sub {
    $data = "";
    enc_U16 0x0006;
    
-   enc_CONSTANT defined $_[0]{message} ? $_[0]{message} : (q|login failed: user of same name logged in|);
+   enc_CONSTANT defined $_[0]{message} ? $_[0]{message} : (q|login failed: other user of same name already exists|);
+   enc_user defined $_[0]{user} ? $_[0]{user} : (q||);
+   enc_U16 defined $_[0]{unknown1} ? $_[0]{unknown1} : (q||);
+   enc_U16 defined $_[0]{unknown2} ? $_[0]{unknown2} : (q||);
    $data;
 };
 
 # userinfo
 $dec_server{0x0008} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "userinfo";
    
    $r->{_unused0} = dec_flag q||;
@@ -1876,6 +2008,7 @@ $dec_server{0x0008} = sub {
    $r->{homepage} = dec_url q||;
    $r->{regdate} = dec_timestamp q||;
    $r->{lastlogin} = dec_timestamp q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{userinfo} = sub {
@@ -1897,11 +2030,12 @@ $enc_server{userinfo} = sub {
 # upd_userinfo_result
 $dec_server{0x0009} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "upd_userinfo_result";
    
    $r->{name} = dec_username q||;
    $r->{message} = dec_CONSTANT q|Thanks for registering.|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{upd_userinfo_result} = sub {
@@ -1916,11 +2050,12 @@ $enc_server{upd_userinfo_result} = sub {
 # upd_userinfo_result
 $dec_server{0x000a} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "upd_userinfo_result";
    
    $r->{name} = dec_username q||;
    $r->{message} = dec_CONSTANT q|The user "%s" has been successfully updated.|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{upd_userinfo_result} = sub {
@@ -1935,11 +2070,12 @@ $enc_server{upd_userinfo_result} = sub {
 # upd_userinfo_result
 $dec_server{0x000b} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "upd_userinfo_result";
    
    $r->{name} = dec_username q||;
    $r->{message} = dec_CONSTANT q|There is no user "%s". Update failed.|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{upd_userinfo_result} = sub {
@@ -1954,10 +2090,11 @@ $enc_server{upd_userinfo_result} = sub {
 # userinfo_failed
 $dec_server{0x0012} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "userinfo_failed";
    
    $r->{name} = dec_username q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{userinfo_failed} = sub {
@@ -1971,12 +2108,13 @@ $enc_server{userinfo_failed} = sub {
 # msg_chat
 $dec_server{0x0013} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "msg_chat";
    
    $r->{name} = dec_username q||;
    $r->{name2} = dec_username q||;
    $r->{message} = dec_STRING q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{msg_chat} = sub {
@@ -1992,7 +2130,7 @@ $enc_server{msg_chat} = sub {
 # stats
 $dec_server{0x0015} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "stats";
    
    $r->{ver_major} = dec_U16 q||;
@@ -2021,6 +2159,7 @@ $dec_server{0x0015} = sub {
    $r->{packets_in} = dec_U64 q||;
    $r->{bytes_out} = dec_U64 q||;
    $r->{packets_out} = dec_U64 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{stats} = sub {
@@ -2059,9 +2198,10 @@ $enc_server{stats} = sub {
 # idle_warn
 $dec_server{0x0016} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "idle_warn";
    
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{idle_warn} = sub {
@@ -2074,10 +2214,11 @@ $enc_server{idle_warn} = sub {
 # login
 $dec_server{0x0018} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "login";
    
    $r->{message} = dec_CONSTANT q|logged out: another client logged in with your username|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{login} = sub {
@@ -2091,10 +2232,11 @@ $enc_server{login} = sub {
 # login
 $dec_server{0x001c} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "login";
    
    $r->{message} = dec_CONSTANT q|logged out: idle for too long|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{login} = sub {
@@ -2108,10 +2250,11 @@ $enc_server{login} = sub {
 # error
 $dec_server{0x0020} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "error";
    
    $r->{message} = dec_CONSTANT q|Sorry, you have too many unfinished games. You cannot turn on your rank. Please finish some of your games, then try again.|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{error} = sub {
@@ -2125,11 +2268,12 @@ $enc_server{error} = sub {
 # login
 $dec_server{0x0022} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "login";
    
    $r->{reason} = dec_STRING q||;
    $r->{result} = dec_CONSTANT q|user or ip blocked|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{login} = sub {
@@ -2144,11 +2288,12 @@ $enc_server{login} = sub {
 # timewarning_default
 $dec_server{0x001b} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "timewarning_default";
    
    $r->{channel} = dec_U16 q||;
    $r->{time} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{timewarning_default} = sub {
@@ -2163,9 +2308,10 @@ $enc_server{timewarning_default} = sub {
 # idle_err
 $dec_server{0x001c} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "idle_err";
    
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{idle_err} = sub {
@@ -2178,9 +2324,10 @@ $enc_server{idle_err} = sub {
 # ping
 $dec_server{0x001d} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "ping";
    
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{ping} = sub {
@@ -2193,7 +2340,7 @@ $enc_server{ping} = sub {
 # usergraph
 $dec_server{0x001e} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "usergraph";
    
    $r->{name} = dec_username q||;
@@ -2202,6 +2349,7 @@ $dec_server{0x001e} = sub {
       push @$array, dec_I16 ;
    }
 
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{usergraph} = sub {
@@ -2216,11 +2364,12 @@ $enc_server{usergraph} = sub {
 # userpic
 $dec_server{0x0021} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "userpic";
    
    $r->{name} = dec_username q||;
    $r->{data} = dec_DATA q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{userpic} = sub {
@@ -2235,13 +2384,14 @@ $enc_server{userpic} = sub {
 # memo_error
 $dec_server{0x0025} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "memo_error";
    
    $r->{name} = dec_username q||;
    $r->{cid} = dec_CLIENTID16 q||;
    $r->{message} = dec_CONSTANT q|memo send failed: account already exists|;
    $r->{subtype} = dec_CONSTANT q|25|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{memo_error} = sub {
@@ -2258,13 +2408,14 @@ $enc_server{memo_error} = sub {
 # memo_error
 $dec_server{0x0026} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "memo_error";
    
    $r->{name} = dec_username q||;
    $r->{cid} = dec_CLIENTID16 q||;
    $r->{message} = dec_CONSTANT q|memo send failed: error 26|;
    $r->{subtype} = dec_CONSTANT q|26|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{memo_error} = sub {
@@ -2281,13 +2432,14 @@ $enc_server{memo_error} = sub {
 # memo_error
 $dec_server{0x0027} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "memo_error";
    
    $r->{name} = dec_username q||;
    $r->{cid} = dec_CLIENTID16 q||;
    $r->{message} = dec_CONSTANT q|memo send failed: user is online, use chat|;
    $r->{subtype} = dec_CONSTANT q|27|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{memo_error} = sub {
@@ -2304,13 +2456,14 @@ $enc_server{memo_error} = sub {
 # memo_error
 $dec_server{0x0028} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "memo_error";
    
    $r->{name} = dec_username q||;
    $r->{cid} = dec_CLIENTID16 q||;
    $r->{message} = dec_CONSTANT q|memo send failed: error 28|;
    $r->{subtype} = dec_CONSTANT q|28|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{memo_error} = sub {
@@ -2327,12 +2480,13 @@ $enc_server{memo_error} = sub {
 # memo
 $dec_server{0x0029} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "memo";
    
    $r->{name} = dec_username q||;
    $r->{time} = dec_timestamp q||;
    $r->{message} = dec_ZSTRING q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{memo} = sub {
@@ -2348,11 +2502,12 @@ $enc_server{memo} = sub {
 # memo_sent
 $dec_server{0x002a} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "memo_sent";
    
    $r->{name} = dec_username q||;
    $r->{cid} = dec_CLIENTID16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{memo_sent} = sub {
@@ -2367,10 +2522,11 @@ $enc_server{memo_sent} = sub {
 # gnotice
 $dec_server{0x0100} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "gnotice";
    
    $r->{notice} = dec_STRING q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{gnotice} = sub {
@@ -2384,13 +2540,14 @@ $enc_server{gnotice} = sub {
 # notify_event
 $dec_server{0x0202} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "notify_event";
    
    $r->{event} = dec_U32 q||;
    $r->{user} = dec_user q||;
    $r->{gamerecord} = dec_game_record q||
       if ($r->{event} == 2);
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{notify_event} = sub {
@@ -2406,9 +2563,10 @@ $enc_server{notify_event} = sub {
 # login_done
 $dec_server{0x030c} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "login_done";
    
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{login_done} = sub {
@@ -2421,10 +2579,11 @@ $enc_server{login_done} = sub {
 # priv_room
 $dec_server{0x0310} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "priv_room";
    
    $r->{name} = dec_STRING q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{priv_room} = sub {
@@ -2438,7 +2597,7 @@ $enc_server{priv_room} = sub {
 # upd_rooms
 $dec_server{0x0318} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "upd_rooms";
    
    $r->{rooms} = (my $array = []);
@@ -2446,6 +2605,7 @@ $dec_server{0x0318} = sub {
       push @$array, dec_room ;
    }
 
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{upd_rooms} = sub {
@@ -2459,11 +2619,12 @@ $enc_server{upd_rooms} = sub {
 # chal_defaults
 $dec_server{0x0411} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "chal_defaults";
    
    $r->{channel} = dec_U16 q||;
    $r->{defaults} = dec_challenge_defaults q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{chal_defaults} = sub {
@@ -2478,11 +2639,12 @@ $enc_server{chal_defaults} = sub {
 # already_playing
 $dec_server{0x0412} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "already_playing";
    
    $r->{message} = dec_CONSTANT q|Sorry, you are already playing in one game, so you can't start playing in another.|;
    $r->{cid} = dec_CLIENTID16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{already_playing} = sub {
@@ -2497,7 +2659,7 @@ $enc_server{already_playing} = sub {
 # game_record
 $dec_server{0x0414} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "game_record";
    
    $r->{name} = dec_username q||;
@@ -2507,6 +2669,7 @@ $dec_server{0x0414} = sub {
       push @$array, dec_game_record ;
    }
 
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{game_record} = sub {
@@ -2522,10 +2685,11 @@ $enc_server{game_record} = sub {
 # error
 $dec_server{0x0417} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "error";
    
    $r->{message} = dec_CONSTANT q|Sorry, your opponent is currently not logged in, so you can't resume this game.|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{error} = sub {
@@ -2539,10 +2703,11 @@ $enc_server{error} = sub {
 # error
 $dec_server{0x0418} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "error";
    
    $r->{message} = dec_CONSTANT q|Sorry, your opponent is already playing in a game, so you cannot continue this one.|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{error} = sub {
@@ -2556,10 +2721,11 @@ $enc_server{error} = sub {
 # error
 $dec_server{0x0419} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "error";
    
    $r->{message} = dec_CONSTANT q|Sorry, the server is out of boards! Please wait a few minutes and try to start a game again.|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{error} = sub {
@@ -2573,11 +2739,12 @@ $enc_server{error} = sub {
 # upd_game2
 $dec_server{0x041c} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "upd_game2";
    
    $r->{channel_junk} = dec_U16 q||;
    $r->{game} = dec_game q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{upd_game2} = sub {
@@ -2592,10 +2759,11 @@ $enc_server{upd_game2} = sub {
 # error
 $dec_server{0x041f} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "error";
    
    $r->{message} = dec_CONSTANT q|Sorry, the game you tried to load was not correctly saved...probably caused by the server crashing. It cannot be recovered.|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{error} = sub {
@@ -2609,10 +2777,11 @@ $enc_server{error} = sub {
 # error
 $dec_server{0x0420} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "error";
    
    $r->{message} = dec_CONSTANT q|Sorry, user "%s" has left the game you are starting before you could challenge them. You will have to play against somebody else.|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{error} = sub {
@@ -2626,10 +2795,11 @@ $enc_server{error} = sub {
 # error
 $dec_server{0x0421} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "error";
    
    $r->{message} = dec_CONSTANT q|Sorry, this game is a private lesson. You will not be allowed to observe it.|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{error} = sub {
@@ -2640,29 +2810,32 @@ $enc_server{error} = sub {
    $data;
 };
 
-# add_global_challenge
+# add_global_challenges
 $dec_server{0x043a} = sub {
    $data = $_[0];
-   my $r;
-   $r->{type} = "add_global_challenge";
+   my $r = { DATA => $data };
+   $r->{type} = "add_global_challenges";
    
-   $r->{channel} = dec_U16 q||;
-   $r->{game} = dec_game q||;
+   $r->{games} = (my $array = []);
+   while (length $data) {
+      push @$array, dec_room_game ;
+   }
+
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
-$enc_server{add_global_challenge} = sub {
+$enc_server{add_global_challenges} = sub {
    $data = "";
    enc_U16 0x043a;
    
-   enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
-   enc_game defined $_[0]{game} ? $_[0]{game} : (q||);
+   enc_room_game defined $_[0]{games} ? $_[0]{games} : (q||);
    $data;
 };
 
 # join_room
 $dec_server{0x4300} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "join_room";
    
    $r->{channel} = dec_U16 q||;
@@ -2671,6 +2844,7 @@ $dec_server{0x4300} = sub {
       push @$array, dec_user ;
    }
 
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{join_room} = sub {
@@ -2685,12 +2859,13 @@ $enc_server{join_room} = sub {
 # msg_room
 $dec_server{0x4301} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "msg_room";
    
    $r->{channel} = dec_U16 q||;
    $r->{name} = dec_username q||;
    $r->{message} = dec_STRING q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{msg_room} = sub {
@@ -2706,11 +2881,12 @@ $enc_server{msg_room} = sub {
 # part_room
 $dec_server{0x4302} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "part_room";
    
    $r->{channel} = dec_U16 q||;
    $r->{user} = dec_user q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{part_room} = sub {
@@ -2725,10 +2901,11 @@ $enc_server{part_room} = sub {
 # del_room
 $dec_server{0x4303} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "del_room";
    
    $r->{channel} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{del_room} = sub {
@@ -2742,7 +2919,7 @@ $enc_server{del_room} = sub {
 # upd_games
 $dec_server{0x4304} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "upd_games";
    
    $r->{channel} = dec_U16 q||;
@@ -2751,6 +2928,7 @@ $dec_server{0x4304} = sub {
       push @$array, dec_game ;
    }
 
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{upd_games} = sub {
@@ -2765,12 +2943,13 @@ $enc_server{upd_games} = sub {
 # desc_room
 $dec_server{0x4319} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "desc_room";
    
    $r->{channel} = dec_U16 q||;
    $r->{owner} = dec_username q||;
    $r->{description} = dec_STRING q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{desc_room} = sub {
@@ -2786,7 +2965,7 @@ $enc_server{desc_room} = sub {
 # challenge
 $dec_server{0x4400} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "challenge";
    
    $r->{channel} = dec_U16 q||;
@@ -2796,6 +2975,7 @@ $dec_server{0x4400} = sub {
    $r->{cid} = dec_CLIENTID8 q||;
    $r->{rules} = dec_rules q||;
    $r->{notes} = dec_STRING q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{challenge} = sub {
@@ -2815,11 +2995,12 @@ $enc_server{challenge} = sub {
 # upd_game
 $dec_server{0x4401} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "upd_game";
    
    $r->{channel} = dec_U16 q||;
    $r->{game} = dec_game q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{upd_game} = sub {
@@ -2834,10 +3015,11 @@ $enc_server{upd_game} = sub {
 # del_game
 $dec_server{0x4402} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "del_game";
    
    $r->{channel} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{del_game} = sub {
@@ -2851,7 +3033,7 @@ $enc_server{del_game} = sub {
 # upd_observers
 $dec_server{0x4403} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "upd_observers";
    
    $r->{channel} = dec_U16 q||;
@@ -2860,6 +3042,7 @@ $dec_server{0x4403} = sub {
       push @$array, dec_user ;
    }
 
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{upd_observers} = sub {
@@ -2874,11 +3057,12 @@ $enc_server{upd_observers} = sub {
 # del_observer
 $dec_server{0x4404} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "del_observer";
    
    $r->{channel} = dec_U16 q||;
    $r->{name} = dec_username q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{del_observer} = sub {
@@ -2893,11 +3077,12 @@ $enc_server{del_observer} = sub {
 # set_tree
 $dec_server{0x4405} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "set_tree";
    
    $r->{channel} = dec_U16 q||;
    $r->{tree} = dec_TREE q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{set_tree} = sub {
@@ -2912,11 +3097,12 @@ $enc_server{set_tree} = sub {
 # upd_tree
 $dec_server{0x4406} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "upd_tree";
    
    $r->{channel} = dec_U16 q||;
    $r->{tree} = dec_TREE q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{upd_tree} = sub {
@@ -2931,10 +3117,11 @@ $enc_server{upd_tree} = sub {
 # superko
 $dec_server{0x4409} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "superko";
    
    $r->{channel} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{superko} = sub {
@@ -2948,13 +3135,14 @@ $enc_server{superko} = sub {
 # game_done
 $dec_server{0x440a} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "game_done";
    
    $r->{channel} = dec_U16 q||;
    $r->{id} = dec_U32 q||;
    $r->{black} = dec_flag q||;
    $r->{white} = dec_flag q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{game_done} = sub {
@@ -2971,12 +3159,13 @@ $enc_server{game_done} = sub {
 # final_result
 $dec_server{0x440b} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "final_result";
    
    $r->{channel} = dec_U16 q||;
    $r->{blackscore} = dec_scorevalues q||;
    $r->{whitescore} = dec_scorevalues q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{final_result} = sub {
@@ -2989,17 +3178,18 @@ $enc_server{final_result} = sub {
    $data;
 };
 
-# time_win
+# out_of_time
 $dec_server{0x440c} = sub {
    $data = $_[0];
-   my $r;
-   $r->{type} = "time_win";
+   my $r = { DATA => $data };
+   $r->{type} = "out_of_time";
    
    $r->{channel} = dec_U16 q||;
    $r->{player} = dec_U8 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
-$enc_server{time_win} = sub {
+$enc_server{out_of_time} = sub {
    $data = "";
    enc_U16 0x440c;
    
@@ -3011,10 +3201,11 @@ $enc_server{time_win} = sub {
 # req_undo
 $dec_server{0x440e} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "req_undo";
    
    $r->{channel} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{req_undo} = sub {
@@ -3028,11 +3219,12 @@ $enc_server{req_undo} = sub {
 # resign_game
 $dec_server{0x4410} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "resign_game";
    
    $r->{channel} = dec_U16 q||;
    $r->{player} = dec_U8 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{resign_game} = sub {
@@ -3047,11 +3239,12 @@ $enc_server{resign_game} = sub {
 # game_error
 $dec_server{0x4415} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "game_error";
    
    $r->{channel} = dec_U16 q||;
    $r->{message} = dec_CONSTANT q|Sorry, this is a lecture game. Only authorized players are allowed to make comments.|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{game_error} = sub {
@@ -3066,11 +3259,12 @@ $enc_server{game_error} = sub {
 # set_teacher
 $dec_server{0x441a} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "set_teacher";
    
    $r->{channel} = dec_U16 q||;
    $r->{name} = dec_username q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{set_teacher} = sub {
@@ -3085,11 +3279,12 @@ $enc_server{set_teacher} = sub {
 # owner_left
 $dec_server{0x441d} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "owner_left";
    
    $r->{channel} = dec_U16 q||;
    $r->{message} = dec_CONSTANT q|Sorry, the owner of this game has left. Nobody will be allowed to edit it until the owner returns.|;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{owner_left} = sub {
@@ -3104,10 +3299,11 @@ $enc_server{owner_left} = sub {
 # teacher_left
 $dec_server{0x441e} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "teacher_left";
    
    $r->{channel} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{teacher_left} = sub {
@@ -3121,11 +3317,12 @@ $enc_server{teacher_left} = sub {
 # allow_user_result
 $dec_server{0x4422} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "allow_user_result";
    
    $r->{message} = dec_CONSTANT q|User "%s" will now be allowed full access to your game.|;
    $r->{channel} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{allow_user_result} = sub {
@@ -3140,11 +3337,12 @@ $enc_server{allow_user_result} = sub {
 # allow_user_result
 $dec_server{0x4424} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "allow_user_result";
    
    $r->{message} = dec_CONSTANT q|Sorry, user "%s" is a guest and cannot be allowed full access to your game.|;
    $r->{channel} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{allow_user_result} = sub {
@@ -3159,11 +3357,12 @@ $enc_server{allow_user_result} = sub {
 # allow_user_result
 $dec_server{0x4425} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "allow_user_result";
    
    $r->{message} = dec_CONSTANT q|Sorry, user "%s" does not seem to exist and cannot be allowed into your game.|;
    $r->{channel} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{allow_user_result} = sub {
@@ -3178,11 +3377,12 @@ $enc_server{allow_user_result} = sub {
 # add_tree
 $dec_server{0x4428} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "add_tree";
    
    $r->{channel} = dec_U16 q||;
    $r->{tree} = dec_TREE q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{add_tree} = sub {
@@ -3197,7 +3397,7 @@ $enc_server{add_tree} = sub {
 # reject_challenge
 $dec_server{0x4429} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "reject_challenge";
    
    $r->{channel} = dec_U16 q||;
@@ -3205,6 +3405,7 @@ $dec_server{0x4429} = sub {
    $r->{gametype} = dec_U8 q||;
    $r->{cid} = dec_CLIENTID8 q||;
    $r->{rules} = dec_rules q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{reject_challenge} = sub {
@@ -3222,12 +3423,13 @@ $enc_server{reject_challenge} = sub {
 # set_comments
 $dec_server{0x442b} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "set_comments";
    
    $r->{channel} = dec_U16 q||;
    $r->{node} = dec_U32 q||;
    $r->{comments} = dec_STRING q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{set_comments} = sub {
@@ -3243,12 +3445,13 @@ $enc_server{set_comments} = sub {
 # add_comments
 $dec_server{0x442c} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "add_comments";
    
    $r->{channel} = dec_U16 q||;
    $r->{node} = dec_U32 q||;
    $r->{comments} = dec_STRING q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{add_comments} = sub {
@@ -3264,11 +3467,12 @@ $enc_server{add_comments} = sub {
 # more_comments
 $dec_server{0x442d} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "more_comments";
    
    $r->{channel} = dec_U16 q||;
    $r->{node} = dec_U32 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{more_comments} = sub {
@@ -3283,11 +3487,12 @@ $enc_server{more_comments} = sub {
 # new_game
 $dec_server{0x442f} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "new_game";
    
    $r->{channel} = dec_U16 q||;
    $r->{cid} = dec_CLIENTID16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{new_game} = sub {
@@ -3302,10 +3507,11 @@ $enc_server{new_game} = sub {
 # req_result
 $dec_server{0x4433} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "req_result";
    
    $r->{channel} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{req_result} = sub {
@@ -3319,11 +3525,12 @@ $enc_server{req_result} = sub {
 # set_quiet
 $dec_server{0x4434} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "set_quiet";
    
    $r->{channel} = dec_U16 q||;
    $r->{quiet} = dec_flag q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{set_quiet} = sub {
@@ -3338,7 +3545,7 @@ $enc_server{set_quiet} = sub {
 # set_gametime
 $dec_server{0x4437} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "set_gametime";
    
    $r->{channel} = dec_U16 q||;
@@ -3346,6 +3553,7 @@ $dec_server{0x4437} = sub {
    $r->{black_moves} = dec_U16 q||;
    $r->{white_time} = dec_time q||;
    $r->{white_moves} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{set_gametime} = sub {
@@ -3363,11 +3571,12 @@ $enc_server{set_gametime} = sub {
 # del_global_challenge
 $dec_server{0x443b} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "del_global_challenge";
    
    $r->{channel} = dec_U16 q||;
    $r->{game} = dec_U16 q||;
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_server{del_global_challenge} = sub {

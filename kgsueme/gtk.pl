@@ -205,8 +205,7 @@ sub numentry {
    my ($ref, $width, $cb) = @_;
 
    my $widget = new Gtk2::Entry;
-   $widget->set (text => $$ref, width_chars => $width);
-   eval { $widget->set (xalign => 1) }; # workaround für 2.2
+   $widget->set (text => $$ref, width_chars => $width, xalign => 1);
    $widget->signal_connect (changed => sub {
       $$ref = $_[0]->get_text;
       $cb->($$ref) if $cb;
@@ -219,8 +218,7 @@ sub timeentry {
    my ($ref, $width, $cb) = @_;
 
    my $widget = new Gtk2::Entry;
-   $widget->set (text => util::format_time $$ref, width_chars => $width);
-   eval { $widget->set (xalign => 1) }; # workaround für 2.2
+   $widget->set (text => util::format_time $$ref, width_chars => $width, xalign => 1);
    $widget->signal_connect (changed => sub {
       $$ref = util::parse_time $_[0]->get_text;
       $cb->($$ref) if $cb;

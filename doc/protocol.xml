@@ -23,7 +23,7 @@
 </head>
 <body>
 
-<h1>$Revision: 1.74 $</h1>
+<h1>$Revision: 1.78 $</h1>
 
 <h1>KGS Protocol Description</h1>
 
@@ -97,7 +97,7 @@
 
       <member name="type" type="U16"/>
       <p>If the type is &gt;= 0x4000 this is a message for a specific channel. The channel
-      number is always the next U16.</p>
+      number is always the next U16. All of these channel values are valid, including zero.</p>
 
       <p>Beginning with version 2.5.x, a number is <em>added</em> on <em>received</em>
       messages only. The algorithm is as follows:
@@ -149,25 +149,27 @@
    <p>Just a simple boolean value. 0 means false, and 1 generally true,
    but I suggest accepting != 0 as true.</p>
 
-   <type name="komi16" type="I16" multiplier="2"/>
-   <type name="komi32" type="I32" multiplier="2"/>
-   <type name="komi324" type="I32" multiplier="4"/>
+   <type name="komi16_2" type="I16" multiplier="2"/>
+   <type name="komi16_4" type="I16" multiplier="4"/>
+   <type name="komi32_2" type="I32" multiplier="2"/>
+   <type name="komi32_4" type="I32" multiplier="4"/>
 
-   <p>Komi values are multiplied by 2 to make them integer in the
-   protocol. Well, *most* of the time at least...</p>
+   <p>Komi values are multiplied by 2 or 4 to make them integer in the
+   protocol.</p>
 
    <type name="result" type="I32" multiplier="2"/>
 
-   <p>The game result is also multiplied by two to give it higher
+   <p>The game result is also multiplied by 2 to give it higher
    resolution. There are also special values for wins by time etc., either
    in result or in the score* types, or both :)</p>
 
-   <type name="score16" type="I16" multiplier="4"/>
-   <type name="score32" type="I32" multiplier="4"/>
-   <type name="score1000" type="I32" multiplier="1000"/>
+   <type name="score16_2" type="I16" multiplier="2"/>
+   <type name="score16_4" type="I16" multiplier="4"/>
+   <type name="score32_4" type="I32" multiplier="4"/>
+   <type name="score32_1000" type="I32" multiplier="1000"/>
 
    <p>A score value (used for displaying the score at the end of a game)
-   are multiplied by four for a change (the 0.25 resolution is not
+   are multiplied by 2 or 4 for a change (the 0.25 resolution is not
    used). In game structures it is encoded by dividing by two, though, so
    watch out! And in some others, it's encoded by multiplying by 1000...
    yuck!</p>
@@ -204,7 +206,7 @@
       <member name="FREE"          value="4"/>
       <member name="RATED"         value="5"/>
       <member name="PRIVATE"       value="128"/>
-      <p>PRIVATE is ored onto DEMONSTRATION or TEACHING</p>
+      <p>PRIVATE is or'ed onto DEMONSTRATION or TEACHING</p>
    </enum>
 
    <set name="GAMEFLAG">
@@ -228,22 +230,22 @@
 
    <enum name="SCORE">
       <p>Special score values, in addition to numerical scores. Some are also used with their
-      negative value.</p>
+      negative value. Unfortunately, these are the raw vaues, before scaling. WMS loves code duplication.</p>
 
-      <member name="TIMEOUT"   value="16384 / 4"/>
+      <member name="TIMEOUT"   value="16384"/>
       Also used negatively to score for white instead of black.
 
-      <member name="RESIGN"    value="16385 / 4"/>
+      <member name="RESIGN"    value="16385"/>
       Also used negatively to score for white instead of black.
 
-      <member name="FORFEIT"   value="    0 / 4"/>
+      <member name="FORFEIT"   value="    0"/>
       Also used negatively to score for white instead of black.
 
-      <member name="JIGO"      value="16386 / 4"/>
+      <member name="JIGO"      value="16386"/>
 
-      <member name="NO_RESULT" value="16386 / 4"/>
-      <member name="ADJOURNED" value="16387 / 4"/>
-      <member name="UNKNOWN"   value="16389 / 4"/>
+      <member name="NO_RESULT" value="16386"/>
+      <member name="ADJOURNED" value="16387"/>
+      <member name="UNKNOWN"   value="16389"/>
    </enum>
 
    <enum name="RULESET">
@@ -288,7 +290,7 @@
       <member name="ruleset" type="U8"/>
       <member name="size" type="U8"/>
       <member name="handicap" type="U8"/>
-      <member name="komi" type="komi16"/>
+      <member name="komi" type="komi16_2"/>
       <member name="timesys" type="U8"/>
       <member name="time" type="U32"/>
       <member name="interval" type="U32"/>
@@ -445,8 +447,8 @@
       <p>Requests part of the users game record to be sent. Results in a <ref reply="game_record"/> or maybe a timeout.</p>
       <member name="name" type="username"/>
       <member name="timestamp" type="timestamp"/>
-      If zero, start at the newest games, else only send games
-      before the given timestap.
+      <p>If zero, start at the newest games, else this should be the timestamp
+      of the first gamerecord sent in the <ref reply="game_record"/> response.</p>
    </message>
 
    <message type="4300" name="join_room" src="client">
@@ -715,15 +717,23 @@
       <member name="size" type="U8"/>
       <member name="handicap" type="I8"/>
       &lt; 0 not fully setup
-      <member name="komi" type="komi16"/>
+      <member name="komi" type="komi16_2"/>
       <member name="moves" type="I16"/>
       This field reflects either the movenum or the score, sorry, not even guards help, as
       the flags to determine that are _after_ the field. Arg. Divide by two to get the actual
-      score (NOT score16!) (arg²).
+      score (arg²).
       <member name="flags" type="U16"/>
       <member name="observers" type="U32"/>
       <member name="saved" type="flag"/>
-      <member name="notes" type="STRING" guard-member="handicap" guard-cond="&lt; 0"/>
+      <member name="notes" type="ZSTRING" guard-member="handicap" guard-cond="&lt; 0"/>
+   </struct>
+
+   <struct name="room_game">
+      A game with the room id prepended.
+
+      <member name="channel" type="U16"/>
+      <p>The room channel.</p>
+      <member name="game" type="game"/>
    </struct>
 
    <struct name="room_obs">
@@ -745,12 +755,12 @@
    </struct>
 
    <struct name="scorevalues" class="KGS::Score">
-      <member name="score" type="score32"/>
+      <member name="score" type="score32_4"/>
       <member name="territory" type="U32"/>
       <member name="captures" type="U32"/>
       <member name="i3" type="U32"/>
       <member name="f2" type="U32"/>
-      <member name="komi" type="komi324"/>
+      <member name="komi" type="komi32_4"/>
       <member name="i4" type="U32"/>
       Apparently the i3, f2, i4 are zero.
    </struct>
@@ -760,26 +770,23 @@
 
       <member name="timestamp" type="timestamp"/>
       Time this game was played.
-      <member name="flags1" type="U8"/>
-      <p>0:3 == handicap, 4:7 == gametype:0:4</p>
+      <member name="type" type="U8"/>
+      <member name="handicap" type="U8"/>
+
+      <member name="revision" type="U16"/>
+      <p>A revision number in case there are multiple similar games.</p>
+
       <member name="black" type="user"/>
-      White, flags contain low 8 bits of revision (bits 16-23).
       <member name="white" type="user"/>
-      Black, flags contain high 8 bits of revision (bits 16-23).
       <member name="owner" type="user"/>
 
-      <p><p>Owner (or empty)</p>
-
-      <p>The bits 16-24 of black.flags and white.flags give the high and
-      low bits of a revision number in case there are multiple similar
-      games.</p></p>
-
-      <member name="flags2" type="U16"/>
-      <p>0:11 == komi / 2, 12:14 == high 3 bits of gametype, 15: == sign bit</p>
-      <member name="score" type="score16"/>
-      <member name="flags3" type="U8"/>
-
-      <p>0:5 == boardsize; 6: == no idea; 7: == inplay?</p>
+      <member name="komi" type="U16"/>
+      <p>0:11 == komi * 2; 12:15 == no idea, always 1-0-0-0?</p>
+      <member name="score" type="score16_2"/>
+      <member name="size" type="U8"/>
+      <p>0:5 == size; 6 no idea; 7 == inprogress</p>
+      <member name="flags" type="U8"/>
+      <p>No idea. I see many values here.</p>
 
    </struct>
 
@@ -788,29 +795,51 @@
    <message type="0001" name="login" src="server">
       <member name="message" type="CONSTANT" value='login successful'/>
       <member name="success" type="CONSTANT" value="1"/>
+
+      <member name="user" type="user"/>
+      <member name="unknown1" type="U16"/>
+      <member name="unknown2" type="U16"/>
    </message>
 
    <message type="0002" name="login" src="server">
       <member name="message" type="CONSTANT" value='login successful: client version is outdated.'/>
       <member name="success" type="CONSTANT" value="1"/>
+
+      <member name="user" type="user"/>
+      <member name="unknown1" type="U16"/>
+      <member name="unknown2" type="U16"/>
    </message>
 
    <message type="0003" name="login" src="server">
       <member name="message" type="CONSTANT" value='login failed: client version out of date'/>
-      ** maybe more following? **
+
+      <member name="user" type="user"/>
+      <member name="unknown1" type="U16"/>
+      <member name="unknown2" type="U16"/>
    </message>
 
    <message type="0004" name="login" src="server">
       <member name="message" type="CONSTANT" value='login failed: wrong password'/>
-      ** maybe more following? **
+
+      <member name="user" type="user"/>
+      <member name="unknown1" type="U16"/>
+      <member name="unknown2" type="U16"/>
    </message>
 
    <message type="0005" name="login" src="server">
       <member name="message" type="CONSTANT" value='login failed: specified user does not exist'/>
+
+      <member name="user" type="user"/>
+      <member name="unknown1" type="U16"/>
+      <member name="unknown2" type="U16"/>
    </message>
 
    <message type="0006" name="login" src="server">
-      <member name="message" type="CONSTANT" value='login failed: user of same name logged in'/>
+      <member name="message" type="CONSTANT" value='login failed: other user of same name already exists'/>
+
+      <member name="user" type="user"/>
+      <member name="unknown1" type="U16"/>
+      <member name="unknown2" type="U16"/>
    </message>
 
    <message type="0008" name="userinfo" src="server">
@@ -1029,8 +1058,11 @@
       The users game record.
       <member name="name" type="username"/>
       <member name="more" type="flag"/>
-      Wether more games are available (must be requested manually)
+      <p>Wether more games are available (must be requested manually by
+      another <ref reply="req_game_record"/> message with the timestamp set
+      to the timestamp of the <em>first</em> game of this packet.</p>
       <member name="games" type="game_record" array="yes"/>
+      <p>Game records, from oldest to newest.</p>
    </message>
 
    <message type="0417" name="error" src="server">
@@ -1064,15 +1096,11 @@
    </message>
 
    <!-- added recently -->
-   <message type="043a" name="add_global_challenge" src="server">
+   <message type="043a" name="add_global_challenges" src="server">
       <p>
          Adds or updates a global challenge (open game list).
       </p>
-      <member name="channel" type="U16"/>
-      <p>
-         The room this game is associated with.
-      </p>
-      <member name="game" type="game"/>
+      <member name="games" type="room_game" array="yes"/>
       <p>The game. The "moves" member contains a small number. Probably garbage.</p>
    </message>
 
@@ -1177,12 +1205,12 @@
       <member name="whitescore" type="scorevalues"/>
    </message>
 
-   <message type="440c" name="time_win" src="server">
+   <message type="440c" name="out_of_time" src="server">
       <p>Sent when the opponent is out of time and moves, or when the other
       requests <ref reply="userinfo"/>.</p>
       <member name="channel" type="U16"/>
       <member name="player" type="U8"/>
-      <p>Colour who won.</p>
+      <p>Colour who ran out of time (lost).</p>
    </message>
 
    <message type="440e" name="req_undo" src="server">

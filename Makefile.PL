@@ -2,8 +2,12 @@ require 5.008;
 
 use Config;
 
-require ExtUtils::MakeMaker;
-import ExtUtils::MakeMaker;
+use ExtUtils::MakeMaker;
+
+if (eval { require Gtk2 }) {
+   Gtk2->CHECK_VERSION (2, 4, 0)
+      or die "gtk+ version 2.4.0 or higher is required to run this program\n";
+}
 
 sub MY::postamble {
    my $self=shift;

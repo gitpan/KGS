@@ -15,7 +15,7 @@ my $SGFHOST = "216.93.172.124";
 
 our $NOW; # the time the last packet was received
 
-our $VERSION = "0.95";
+our $VERSION = '0.99';
 
 sub MSG_CHANNEL() { 0x4000 }
 
@@ -56,14 +56,11 @@ sub decode_msg($) {
    my $msg = $KGS::Messages::dec_server{$type};
 
    if ($msg) {
-      # $msg->($data);
-      $msg = $msg->($data);
-      $msg->{DATA} = unpack "H*", $data;
-      $msg;
+      $msg->($data);
    } else {
       {
-         type => (sprintf "%04x", $type),
-         TRAILING_DATA => (unpack "H*", $data),
+         type => (sprintf "unknown_%04x", $type),
+         DATA => $data,
       };
    }
 }
@@ -305,7 +302,7 @@ sub flags_string {
 }
 
 sub as_string {
-   sprintf "%s [%s]", $_[0]{name}, $_[0]->rank_string;
+   sprintf "%s\xa0[%s]", $_[0]{name}, $_[0]->rank_string;
 }
 
 package KGS::Game;
@@ -319,7 +316,7 @@ sub is_adjourned  { $_[0]{flags} & 0x2 }
 
 sub is_inprogress { $_[0]{handicap} >= 0 } # maybe rename to "complete"? "started"? "has_board"? ;)
 
-sub is_private    { $_[0]{type} & 128 }
+sub is_private    { $_[0]{type} & GAMETYPE_PRIVATE }
 
 sub is_active {
    &is_inprogress and !&is_scored;
@@ -389,7 +386,7 @@ sub score_string {
       } else  {
          $res = "B+";
       }
-      $res .= $special_score{$score} || $score;
+      $res .= $special_score{$score * 4} || $score;
    } else {
       $res = "(unfinished)";
    }
@@ -412,6 +409,94 @@ sub rules {
       if $self->is_scored;
 
    $rules;
+}
+
+package KGS::GameRecord;
+
+use KGS::Constants;
+
+sub score {
+   $_[0]{score};
+}
+
+sub revision {
+   $_[0]{revision};
+}
+
+sub is_scored {
+   ! ($_[0]{size} & 0x80);
+}
+
+sub gametype {
+   $_[0]{gametype};
+}
+
+sub size {
+   $_[0]{size} & 0x3f;
+}
+
+sub komi {
+   $_[0]{komi} & 0x0800
+      ? 0.5 * ($_[0]{komi} & 0x7ff) - 0x400
+      : 0.5 * ($_[0]{komi} & 0x7ff);
+}
+
+sub handicap {
+   $_[0]{handicap};
+}
+
+sub score_string {
+   my ($self) = @_;
+
+   my $res;
+
+   if ($self->is_scored) {
+      $score = $self->score;
+      if ($score < 0) {
+         $res = "W+";
+         $score *= -1;
+      } else  {
+         $res = "B+";
+      }
+      $res .= $special_score{$score * 2} || $score;
+   } else {
+      $res = "(unfinished)";
+   }
+
+   $res;
+}
+
+sub uri {
+   my ($self) = @_;
+
+   return if $self->is_inplay;
+   return if $self->{score} == SCORE_ADJOURNED;
+   return if $self->{gametype} & GAMETYPE_PRIVATE;
+
+   $revision = $self->revision;
+
+   my $p1 = $self->{black}{name};
+   my $p2 = $self->{white}{name};
+   my $p3 = $self->{owner}{name};
+
+   my ($year, $month, $day) = (gmtime $self->{timestamp})[5,4,3];
+
+   my $revisionstring = $revision ? "-" . ($revision+1) : "";
+   my $playerstring =
+         $p3 && $self->gametype == GAMETYPE_DEMONSTRATION
+            ? $p3
+            : $p2 eq $p1 
+              ? $p2
+              : "$p2-$p1";
+
+   sprintf "/games/%d/%d/%d/%s%s.sgf",
+           $year + 1900, $month + 1, $day,
+           $playerstring, $revisionstring;
+}
+
+sub url {
+   my $uri = &uri;
+   $uri && "http://kgs.kiseido.com$uri";
 }
 
 package KGS::Room;
@@ -452,79 +537,6 @@ sub as_string {
 }
 
 package KGS::Stats;
-
-package KGS::GameRecord;
-
-use KGS::Constants;
-
-use base KGS::Game;
-
-sub revision {
-   my ($self) = @_;
-
-   (($self->{black}{flags} >> 16) & 0x00ff)
-   | (($self->{white}{flags} >>  8) & 0xff00);
-}
-
-sub is_inplay {
-   $_[0]{flags3} & 0x80;
-}
-
-sub _gametype {
-   ($_[0]{flags1} >> 4) | (($_[0]{flags2} >> 8) & 0x70);
-}
-
-sub gametype {
-   &_gametype & 15;
-}
-
-sub size {
-   $_[0]{flags3} & 0x3f;
-}
-
-sub komi {
-   0.5 *
-      ($_[0]{flags2} < 0x8000
-         ? $_[0]{flags2} & 0x3ff
-         : ($_[0]{flags2} & 0x3ff) - 0x400);
-}
-
-sub handicap {
-   $_[0]{flags3} & 0x3f;
-}
-
-sub uri {
-   my ($self) = @_;
-
-   return if $self->is_inplay;
-   return if $self->{score} == SCORE_ADJOURNED;
-   return if $self->gameopt == GAMEOPT_PRIVATE;
-
-   $revision = $self->revision;
-
-   my $p1 = $self->{black}{name};
-   my $p2 = $self->{white}{name};
-   my $p3 = $self->{owner}{name};
-
-   my ($year, $month, $day) = (gmtime $self->{timestamp})[5,4,3];
-
-   my $revisionstring = $revision ? "-" . ($revision+1) : "";
-   my $playerstring =
-         $p3 && $self->gametype == GAMETYPE_DEMONSTRATION
-            ? $p3
-            : $p2 eq $p1 
-              ? $p2
-              : "$p2-$p1";
-
-   sprintf "/games/%d/%d/%d/%s%s.sgf",
-           $year + 1900, $month + 1, $day,
-           $playerstring, $revisionstring;
-}
-
-sub url {
-   my $uri = &uri;
-   $uri && "http://kgs.kiseido.com$uri";
-}
 
 package KGS::Protocol::Generator;
 

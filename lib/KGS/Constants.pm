@@ -47,13 +47,13 @@ sub ROOMFLAG_ADMIN () { 0x01 }
 sub ROOMFLAG_DEFAULT () { 0x04 }
 sub ROOMFLAG_PRIVATE () { 0x10 }
 sub GAMESTATUS_INPLAY () { 0x80 }
-sub SCORE_TIMEOUT () { 16384 / 4 }
-sub SCORE_RESIGN () { 16385 / 4 }
-sub SCORE_FORFEIT () {     0 / 4 }
-sub SCORE_JIGO () { 16386 / 4 }
-sub SCORE_NO_RESULT () { 16386 / 4 }
-sub SCORE_ADJOURNED () { 16387 / 4 }
-sub SCORE_UNKNOWN () { 16389 / 4 }
+sub SCORE_TIMEOUT () { 16384 }
+sub SCORE_RESIGN () { 16385 }
+sub SCORE_FORFEIT () {     0 }
+sub SCORE_JIGO () { 16386 }
+sub SCORE_NO_RESULT () { 16386 }
+sub SCORE_ADJOURNED () { 16387 }
+sub SCORE_UNKNOWN () { 16389 }
 sub RULESET_JAPANESE () { 0 }
 sub RULESET_CHINESE  () { 1 }
 sub RULESET_AGA () { 2 }
@@ -77,6 +77,7 @@ sub INTERVAL_GAMEUPDATES   () { 60 } # request game list updates this often (sec
     &GAMETYPE_DEMONSTRATION => "demonstration",
     &GAMETYPE_EDITING       => "editing",
     &GAMETYPE_TEACHING      => "teaching",
+    &GAMETYPE_SIMUL         => "simul",
     &GAMETYPE_FREE          => "free",
     &GAMETYPE_RATED         => "rated",
 );

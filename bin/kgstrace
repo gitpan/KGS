@@ -71,12 +71,10 @@ while (my $l = $l->accept) {
 
                      delete $msg->{data} if $msg->{type} eq "userpic";
 
-                     print "\npacket type $msg->{type} received from CLIENT:\n";
-                     open XTYPE, "|xtype"; printf XTYPE "%16d%s", (length $pkt), $pkt; close XTYPE;
-                     print KGS::Listener::Debug::dumpval $msg;
+                     print KGS::Listener::Debug::dumpmsg "\nCLIENT", $msg;
                   } else {
                      print "\007\n\nUNKNOWN PACKET TYPE RECEIVED FROM CLIENT:\n";
-                     open XTYPE, "|xtype"; printf XTYPE "%16d%s", (length $pkt), $pkt; close XTYPE;
+                     print KGS::Listener::Debug::dumpmsg "CLIENT: UNKNOWN PACKET", $msg;
                   }
 
                   $rlen = 0;
@@ -111,8 +109,7 @@ sub inject {
 
    delete $msg->{data} if $msg->{type} eq "userpic";
 
-   print "received packet type $msg->{type} from SERVER\n";
-   print KGS::Listener::Debug::dumpval $msg;
+   print KGS::Listener::Debug::dumpmsg "\nSERVER", $msg;
 }
 
 

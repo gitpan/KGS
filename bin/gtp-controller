@@ -87,6 +87,11 @@ sub inject_login {
    print STDERR "login: $msg->{message}\n" if $verbose >= 2;
 
    $gtp->send ("kgs-login $msg->{message}");
+
+#   use KGS::Listener::User;
+#   $user = new KGS::Listener::User name => "tetra";
+#   $user->listen ($self->{conn});
+#   $user->game_record;
 }
 
 sub inject_msg_room {
@@ -127,6 +132,12 @@ sub inject_new_game {
 
    $::lastnew = $msg->{channel};#d#
    $gtp->send ("kgs-game-new $msg->{cid} $msg->{channel}");
+}
+
+sub inject_idle_warn {
+   my ($self, $msg) = @_;
+
+   $self->send ("idle_reset");
 }
 
 #############################################################################

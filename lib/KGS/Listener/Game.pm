@@ -11,7 +11,7 @@ sub listen {
                             req_undo: set_teacher: superko: final_result:
                             owner_left: teacher_left: req_result: challenge:
                             set_gametime: new_game: reject_challenge:
-                            time_win: game_done: set_comments: add_comments:
+                            out_of_time: game_done: set_comments: add_comments:
                             more_comments: already_playing));
 }
 
@@ -164,10 +164,10 @@ sub inject_resign_game {
    $self->event_resign_game ($msg->{player});
 }
 
-sub inject_time_win {
+sub inject_out_of_time {
    my ($self, $msg) = @_;
 
-   $self->event_time_win ($msg->{player});
+   $self->event_out_of_time ($msg->{player});
 }
 
 sub inject_game_done {
@@ -199,7 +199,7 @@ sub event_update_game { }
 sub event_challenge { }
 
 # $player
-sub event_time_win { }
+sub event_out_of_time { }
 
 # $player
 sub event_resign_game { }

@@ -55,6 +55,7 @@ sub INTERVAL_GAMEUPDATES   () { 60 } # request game list updates this often (sec
     &GAMETYPE_DEMONSTRATION => "demonstration",
     &GAMETYPE_EDITING       => "editing",
     &GAMETYPE_TEACHING      => "teaching",
+    &GAMETYPE_SIMUL         => "simul",
     &GAMETYPE_FREE          => "free",
     &GAMETYPE_RATED         => "rated",
 );

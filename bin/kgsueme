@@ -1,5 +1,7 @@
 #!/usr/bin/perl
 
+use strict 'vars';
+
 use Glib;
 use Gtk2;
 
@@ -88,20 +90,6 @@ bless( {
 
       if (0) {
          $game->{cur_board} = new KGS::Game::Board;
-         my @x = (
-               #MARK_B,
-               #MARK_W,
-               #MARK_GRAY_B | MARK_SMALL_W,
-               #MARK_GRAY_W | MARK_SMALL_B,
-               #MARK_W | MARK_TRIANGLE,
-               0, 0, 0,
-               );
-         for $x (0..18) {
-            for $y (0..18) {
-               $game->{cur_board}{board}[$x][$y] =
-                  $x[rand @x];
-            }
-         }
 
          $game->{cur_board}{board}[0][0] = MARK_B;
          $game->{cur_board}{board}[1][1] = MARK_GRAY_B | MARK_SMALL_W;

@@ -14,8 +14,6 @@
 
 package KGS::Messages;
 
-use Gtk2::GoBoard::Constants; # for MARK_xyz
-
 use strict;
 
 our %type;
@@ -27,9 +25,13 @@ our %enc_server; # encode messages received from server
 
 {
 
+use Gtk2::GoBoard::Constants; # for MARK_xyz
+use Math::BigInt ();
+
 my $data; # stores currently processed decoding/encoding packet
 
 sub _set_data($) { $data = shift } # for debugging or special apps only
+sub _get_data() { $data } # for debugging or special apps only
 
 # primitive enc/decoders
 
@@ -48,8 +50,9 @@ sub dec_U32 {
 }
 
 sub dec_U64 {
+   # do NOT use Math::BigInt here.
    my ($lo, $hi) = (dec_U32, dec_U32);
-   $lo + $hi * 2**32;
+   $hi * 2**32 + $lo;
 }
 
 sub dec_I8 {
@@ -106,8 +109,10 @@ sub enc_U32 {
 }
 
 sub enc_U64 {
-   enc_U32 $_[0] & 0xffffffff;
-   enc_U32 +($_[0] >> 32) & 0xffffffff;
+   my $i = new Math::BigInt $_[0];
+
+   enc_U32 $i & 0xffffffff;
+   enc_U32 $i >> 32;
 }
 
 sub enc_I8 {
@@ -142,11 +147,10 @@ sub enc_CONSTANT {
 }
 
 sub enc_password {
-   require Math::BigInt; # I insist on 32-bit-perl.. should use C
    # $hash must be 64 bit
    my $hash = new Math::BigInt;
    $hash = $hash * 1055 + ord for split //, $_[0];
-   enc_U64 $hash;
+   enc_U64 $hash & new Math::BigInt "0xffffffffffffffff";
 }
 
 sub enc_HEX {
@@ -189,7 +193,7 @@ sub dec_TREE {
          push @r, [set_current => dec_I32];
 
       } elsif ($type == 34) {
-         push @r, [score => dec_U8, dec_score1000];
+         push @r, [score => dec_U8, dec_score32_1000];
 
       } elsif ($type == 29) {
          push @r, [type_29 => dec_ZSTRING];
@@ -452,9 +456,10 @@ sub enc_<xsl:value-of select="@name"/> {
 # <xsl:value-of select="@name"/>
 $dec_<xsl:value-of select="@src"/>{0x<xsl:value-of select="@type"/>} = sub {
    $data = $_[0];
-   my $r;
+   my $r = { DATA => $data };
    $r->{type} = "<xsl:value-of select="@name"/>";
    <xsl:apply-templates select="member" mode="dec"/>
+   $r->{TRAILING_DATA} = $data if length $data;
    $r;
 };
 $enc_<xsl:value-of select="@src"/>{<xsl:value-of select="@name"/>} = sub {

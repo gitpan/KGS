@@ -184,7 +184,7 @@ sub inject_upd_rooms {
 
    # join default room
    for (@{$msg->{rooms}}) {
-      $self->open_room (%$_) if $_->is_default;
+      $self->open_room (%$_) if $_->is_default;#d#
    }
 }
 

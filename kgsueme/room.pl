@@ -25,26 +25,25 @@ sub new {
 
    $self->signal_connect (delete_event => sub { $self->part; 1 });
 
-   $self->add (my $hbox = new Gtk2::HBox);
+   $self->add (my $hpane = new Gtk2::HPaned);
+   gtk::state $hpane, "room::hpane", undef, position => 500;
 
-   $hbox->pack_start ((my $vbox = new Gtk2::VBox), 1, 1, 0);
+   $hpane->pack1 (($self->{chat} = new chat app => $self->{app}), 1, 0);
    
-   $vbox->add ($self->{chat} = new chat);
-
    $self->{chat}->signal_connect (command => sub {
       my ($chat, $cmd, $arg) = @_;
       $self->{app}->do_command ($chat, $cmd, $arg, userlist => $self->{userlist}, room => $self);
    });
 
-   $hbox->pack_start ((my $vbox = new Gtk2::VBox), 0, 1, 0);
+   $hpane->pack2 ((my $vbox = new Gtk2::VBox), 1, 0);
 
    $vbox->pack_start ((my $button = new_with_label Gtk2::Button "Leave"), 0, 1, 0);
    $button->signal_connect (clicked => sub { $self->part });
    
    $vbox->pack_start ((my $button = new_with_label Gtk2::Button "New Game"), 0, 1, 0);
-   $button->signal_connect (clicked => sub { $self->new_game });
+   $button->signal_connect (clicked => sub { $self->new_game });  
+   $vbox->pack_start((my $sw = new Gtk2::ScrolledWindow), 1, 1, 0);
 
-   $vbox->pack_start ((my $sw = new Gtk2::ScrolledWindow), 1, 1, 0);
    $sw->set_policy ("automatic", "always");
 
    $sw->add ($self->{userlist} = new userlist);

@@ -176,7 +176,9 @@ sub configure {
       $self->{name}->set_text ($user->as_string);
 
       $self->{imagebox}->remove ($_) for $self->{imagebox}->get_children;
-      $self->{imagebox}->add (gtk::image_from_data undef);
+      unless ($::config{suppress_userpic}) {
+        $self->{imagebox}->add (gtk::image_from_data undef);
+      }
       $self->{imagebox}->show_all;
 
       if ($user->has_pic) {
@@ -186,7 +188,9 @@ sub configure {
 
             if ($_[0]) {
                $self->{imagebox}->remove ($_) for $self->{imagebox}->get_children;
-               $self->{imagebox}->add (gtk::image_from_data $_[0]);
+               unless ($::config{suppress_userpic}) {
+                 $self->{imagebox}->add (gtk::image_from_data $_[0]);
+               }
                $self->{imagebox}->show_all;
             }
          });
@@ -264,6 +268,7 @@ sub new {
    {
       $frame->add (my $vbox = new Gtk2::VBox);
       $vbox->add ($self->{title} = new Gtk2::Label "-");
+      $self->{title}->set (visible => 0, no_show_all => 1); # workaround for refresh-bug
 
       $vbox->add (my $hbox = new Gtk2::HBox);
 
@@ -289,25 +294,26 @@ sub new {
    $vbox->pack_start ((my $buttonbox = new Gtk2::HButtonBox), 0, 1, 0);
 
    $buttonbox->add ($self->{button_pass} =
-      Gtk2::Button->Glib::Object::new (label => "Pass", visible => 0));
+      Gtk2::Button->Glib::Object::new (label => "Pass", visible => 0, no_show_all => 1));
    $self->{button_pass}->signal_connect (clicked => sub {
       $self->{board_click}->(255, 255) if $self->{board_click};
    });
-   eval { $self->{button_pass}->set (no_show_all => 1) }; # workaround for gtk+-2.2
    $buttonbox->add ($self->{button_undo} =
-      Gtk2::Button->Glib::Object::new (label => "Undo", visible => 0));
+      Gtk2::Button->Glib::Object::new (label => "Undo", visible => 0, no_show_all => 1));
    $self->{button_undo}->signal_connect (clicked => sub {
       $self->send (req_undo => channel => $self->{channel});
    });
-   eval { $self->{button_undo}->set (no_show_all => 1) }; # workaround for gtk+-2.2
    $buttonbox->add ($self->{button_resign} =
-      Gtk2::Button->Glib::Object::new (label => "Resign", visible => 0));
+      Gtk2::Button->Glib::Object::new (label => "Resign", visible => 0, no_show_all => 1));
    $self->{button_resign}->signal_connect (clicked => sub {
       $self->send (resign_game => channel => $self->{channel}, player => $self->{colour});
    });
-   eval { $self->{button_resign}->set (no_show_all => 1) }; # workaround for gtk+-2.2
    
-   $vbox->pack_start (($self->{chat} = new chat), 1, 1, 0);
+   $vbox->pack_start (($self->{chat} = new chat app => $self->{app}), 1, 1, 0);
+
+   $self->{chat}->signal_connect (tag_event => sub {
+      my (undef, $tag, $event, $content) = @_;
+   });
 
    $self->set_channel ($self->{channel});
 
@@ -321,7 +327,7 @@ sub set_channel {
 
    $self->{channel} = $channel;
 
-   if ($self->{channel} > 0) {
+   if (defined $self->{channel}) {
       $self->listen ($self->{conn});
 
       $self->{rules_inlay} = $self->{chat}->new_switchable_inlay ("Game Setup:", sub { $self->draw_setup (@_) }, 1);
@@ -331,7 +337,9 @@ sub set_channel {
       $self->{chat}->signal_connect (command => sub {
          my ($chat, $cmd, $arg) = @_;
          if ($cmd eq "rsave") {
-            Storable::nstore { tree => $self->{tree}, curnode => $self->{curnode}, move => $self->{move} }, $arg;#d#
+            local $Storable::forgive_me = 1;
+            #Storable::nstore { tree => $self->{tree}, curnode => $self->{curnode}, move => $self->{move} }, $arg;#d#
+            Storable::nstore { %$self }, $arg;#d#
          } else {
             $self->{app}->do_command ($chat, $cmd, $arg, userlist => $self->{userlist}, game => $self);
          }
@@ -383,7 +391,7 @@ sub draw_users {
    my ($self, $inlay) = @_;
 
    for (sort keys %{$self->{users}}) {
-      $inlay->append_text ("  <user>" . $self->{users}{$_}->as_string . "</user>");
+      $inlay->append_text ("\t<user>" . $self->{users}{$_}->as_string . "</user>");
    }
 }
 
@@ -508,6 +516,7 @@ sub event_update_game {
                   : "Game Window";
    $self->set_title ("KGS Game $title");
    $self->{title}->set_text ($title); # title gets redrawn wrongly
+   $self->{title}->show; # workaround for refresh-bug
 
    $self->{rules_inlay}->refresh;
 
@@ -783,24 +792,24 @@ sub event_resign_game {
    sound::play 3, "resign";
    $self->{chat}->append_text ("\n<infoblock><header>Resign</header>"
                                . "\n<user>"
-                               . (util::toxml $self->{user}[$msg->{player}]->as_string)
+                               . (util::toxml $self->{user}[$player]->as_string)
                                . "</user> resigned."
                                . "\n<user>"
-                               . (util::toxml $self->{user}[1 - $msg->{player}]->as_string)
+                               . (util::toxml $self->{user}[1 - $player]->as_string)
                                . "</user> wins the game."
                                . "</infoblock>");
 }
 
-sub event_time_win {
+sub event_out_of_time {
    my ($self, $player) = @_;
 
    sound::play 3, "timewin";
    $self->{chat}->append_text ("\n<infoblock><header>Out of Time</header>"
                                . "\n<user>"
-                               . (util::toxml $self->{user}[1 - $msg->{player}]->as_string)
+                               . (util::toxml $self->{user}[$msg->{player}]->as_string)
                                . "</user> ran out of time and lost."
                                . "\n<user>"
-                               . (util::toxml $self->{user}[$msg->{player}]->as_string)
+                               . (util::toxml $self->{user}[1 - $msg->{player}]->as_string)
                                . "</user> wins the game."
                                . "</infoblock>");
 }
@@ -898,7 +907,7 @@ sub draw_challenge {
 
    my ($size, $time, $interval, $count, $type);
 
-   if (!$self->{channel}) {
+   if (!defined $self->{channel}) {
       $inlay->append_text ("\nNotes: ");
       $inlay->append_widget (gtk::textentry \$info->{notes}, 20, "");
       $inlay->append_text ("\nGlobal Offer: ");
@@ -925,7 +934,7 @@ sub draw_challenge {
       },
    );
 
-   if ($self->{channel}) {
+   if (defined $self->{channel}) {
       $inlay->append_text ("\nMy Colour: ");
       $inlay->append_optionmenu (
          \$as_black,
@@ -958,7 +967,7 @@ sub draw_challenge {
       },
    );
 
-   if ($self->{channel}) {
+   if (defined $self->{channel}) {
       $inlay->append_text ("\nHandicap: ");
       $inlay->append_optionmenu (\$info->{rules}{handicap}, map +($_, $_), 0..9);
 
@@ -1010,7 +1019,7 @@ sub draw_challenge {
 
    $inlay->append_text ("\n");
 
-   if (!$self->{channel}) {
+   if (!defined $self->{channel}) {
       $inlay->append_button ("Create Challenge", sub {
          $inlay->clear;
          $self->{cid} = $self->{conn}->alloc_clientid;

@@ -1,5 +1,11 @@
 Revision history for Perl extension KGS.
 
+0.99 Tue Aug 10 03:58:58 CEST 2004
+	- fix wrong resign output.
+        - many gui improvements, clickable users, more to come.
+        - better user info window, courtesy of elmex.
+        - channel #0 is a valid channel.
+
 0.95 Fri Jun  4 04:43:30 CEST 2004
 	- the converted html documentation lacked most of
           the descriptions. Doh!

@@ -76,6 +76,7 @@ Utter something in the room.
 
 sub say {
    my ($self, $msg) = @_;
+   return unless length $msg;
    $self->send(msg_room => channel => $self->{channel}, name => $self->{conn}{name}, message => $msg);
 }
 

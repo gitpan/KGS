@@ -38,7 +38,7 @@ sub say {
    my ($self, $msg) = @_;
 
    $self->send (msg_chat =>
-                name => $self->{app}{name},
+                name => $self->{conn}{name},
                 name2 => $self->{name},
                 message => $msg);
 }
@@ -82,10 +82,10 @@ sub inject_game_record {
 
    push @{$self->{game_record}}, @{$msg->{games}};
 
-   if ($self->{more}) {
+   if ($msg->{more}) {
       $self->send (req_game_record =>
-                   name => $self->{name},
-                   timestamp => $msg->{games}[-1]{timestamp});
+                   name      => $self->{name},
+                   timestamp => $msg->{games}[0]{timestamp});
    } else {
       $self->event_game_record;
    }
