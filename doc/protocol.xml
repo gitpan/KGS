@@ -23,7 +23,7 @@
 </head>
 <body>
 
-<h1>$Revision: 1.48 $</h1>
+<h1>$Revision: 1.54 $</h1>
 
 <h1>KGS Protocol Description</h1>
 
@@ -198,18 +198,13 @@
 
    <enum name="GAMETYPE">
       <member name="DEMONSTRATION" value="0"/>
-      <member name="TEACHING"      value="1"/>
-      <member name="FREE"          value="2"/>
-      <member name="RATED"         value="3"/>
-      <member name="TYPE4"         value="4"/>
-      Probably not used, but the protocol has space for it it seems.
-   </enum>
-
-   <enum name="GAMEOPT">
-      <member name="NONE"    value="0"/>
-      <member name="LECTURE" value="1"/>
-      <member name="PRIVATE" value="2"/>
-      <member name="SIMUL"   value="3"/>
+      <member name="EDITING"       value="1"/>
+      <member name="TEACHING"      value="2"/>
+      <member name="SIMUL"         value="3"/>
+      <member name="FREE"          value="4"/>
+      <member name="RATED"         value="5"/>
+      <member name="PRIVATE"       value="128"/>
+      <p>PRIVATE is ored onto DEMONSTRATION or TEACHING</p>
    </enum>
 
    <set name="GAMEFLAG">
@@ -312,16 +307,16 @@
       </p>
 
       <member name="ver_major" type="U32" value="2"/>
-      <member name="ver_minor" type="U32" value="5"/>
-      <member name="ver_micro" type="U32" value="2"/>
+      <member name="ver_minor" type="U32" value="6"/>
+      <member name="ver_micro" type="U32" value="0"/>
       <member name="name" type="username"/>
       <member name="password" type="password" value="0"/>
       <member name="guest" type="flag" value="1"/>
       <member name="_unknown3" type="U16" value="0"/>
       <member name="locale" type="locale" value='"en_US"'/>
-      <member name="clientver" type="DATA" value='"1.4.1_01:Swing app:Sun Microsystems Inc."'/>
+      <member name="clientver" type="DATA" value='"1.4.2_03:Swing app:Sun Microsystems Inc."'/>
       The "default" is the java vm version, not exactly he client version. However,
-      you should always send a text like "Jonathan's C client bersion 0.6" or somesuch,
+      you should always send a text like "Jonathan's C client version 0.6" or somesuch,
       so the server can, if necessary, block broken clients or client versions.
    </message>
 
@@ -482,9 +477,14 @@
       <member name="channel" type="U16"/>
       <p>The room where to start the new game</p>
       <member name="id" type="U16"/>
-      <member name="gametype" type="U32"/>
+      <member name="type" type="U8"/>
       <p>
-         0x200 == global open game list
+         GAMETYPE_UPLOAD probably not allowed. GAMETYPE_PRIVATE
+         only allowd together with GAMETYPE_TEACHING, GAMETYPE_DEMONSTRATION.
+      </p>
+      <member name="flags" type="U8"/>
+      <p>
+         0x2 == global open game list
       </p>
       <member name="rules" type="rules"/>
       <p>When cloning a game, the rules are set up like this:
@@ -590,13 +590,14 @@
    </message>
 
    <message type="441a" name="set_teacher" src="client">
-      Change the teacher to somebody else (or possibly yourself == take it).
+      <p>Change the teacher to somebody else (or possibly yourself == take it). If the
+      name is empty, the game will continue normally.</p>
       <member name="channel" type="U16"/>
       <member name="name" type="username"/>
    </message>
 
    <message type="4422" name="allow_user" src="client">
-      Unclear. Maybe allow users to talk? No idea, really.
+      <p>Unclear. Maybe allow users to talk? No idea, really.</p>
 
       <member name="channel" type="U16"/>
       <member name="othername" type="username"/>
@@ -1168,6 +1169,16 @@
       <p>Sets (or clears) the quiet flag on a game.</p>
       <member name="channel" type="U16"/>
       <member name="quiet" type="U8"/>
+   </message>
+
+   <message type="4437" name="set_endtime" src="server">
+      <p>Sent when joining a scored game (not when scoring). Probably
+      gives the remaining time + periods/moves for the players.</p>
+      <member name="channel" type="U16"/>
+      <member name="btime" type="time"/>
+      <member name="bcount" type="U16"/>
+      <member name="wtime" type="time"/>
+      <member name="wcount" type="U16"/>
    </message>
 
    <message type="443b" name="del_global_challenge" src="server">

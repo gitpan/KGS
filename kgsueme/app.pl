@@ -5,44 +5,46 @@ use KGS::Protocol::Client;
 use Scalar::Util;
 
 use base KGS::Listener;
-use base gtk::widget;
+
+use Glib::Object::Subclass
+   Gtk2::Window;
 
 my %context_id;
+
+our $self;
 
 sub status {
    my ($type, $text) = @_;
 
-   $self->{status}->pop($context_id{$type}) if $context_id{$type};
-   $self->{status}->push($context_id{$type} ||= $self->{status}->get_context_id($type), $text) if $text;
+   $::self->{status}->pop ($context_id{$type}) if $context_id{$type};
+   $::self->{status}->push ($context_id{$type} ||= $::self->{status}->get_context_id ($type), $text) if $text;
 }
 
 sub new {
-   my $self = shift;
-   $self = $self->SUPER::new(@_);
+   my ($self, %arg) = @_;
+   $self = $self->Glib::Object::new;
+   $self->{$_} = delete $arg{$_} for keys %arg;
 
-   $app::self = $self; # singleton
-   Scalar::Util::weaken $app::self;
+   Scalar::Util::weaken ($::self = $self); # singleton...
 
    $self->{conn} = new KGS::Protocol::Client;
 
-   #KGS::Listener::Debug->new->listen($self->{conn}, "any"); #d# debug only :)
-
-   $self->listen($self->{conn}, qw(login userpic idle_warn msg_chat));
+   $self->listen ($self->{conn}, qw(login userpic idle_warn msg_chat));
 
    $self->{roomlist} = new roomlist conn => $self->{conn}, app => $self;
 
-   $self->{window} = new Gtk2::Window 'toplevel';
-   $self->{window}->set_title('kgsueme');
-   gtk::state $self->{window}, "main::window", undef, window_size => [400, 400];
-   $self->{window}->signal_connect(delete_event => sub { main_quit Gtk2; 1 });
+   $self->set_title ('kgsueme');
+   gtk::state $self, "main::window", undef, window_size => [400, 400];
+   $self->signal_connect (destroy => sub { %{$_[0]} = () });
+   $self->signal_connect (delete_event => sub { main_quit Gtk2; 1 });
 
-   $self->{window}->add(my $vbox = new Gtk2::VBox);
+   $self->add (my $vbox = new Gtk2::VBox);
 
-   $vbox->pack_start(($buttonbox = new Gtk2::HButtonBox), 0, 1, 0);
-   $buttonbox->set_spacing(0);
+   $vbox->pack_start (($buttonbox = new Gtk2::HButtonBox), 0, 1, 0);
+   $buttonbox->set_spacing (0);
 
    my $button = sub {
-      $buttonbox->add(my $button = new Gtk2::Button $_[0]);
+      $buttonbox->add (my $button = new Gtk2::Button $_[0]);
       signal_connect $button clicked => $_[1];
    };
 
@@ -51,23 +53,23 @@ sub new {
    $button->("Save Config & Layout", \&util::save_config);
    $button->("Quit", sub { main_quit Gtk2 });
 
-   $vbox->pack_start((my $hbox = new Gtk2::HBox), 0, 1, 0);
+   $vbox->pack_start ((my $hbox = new Gtk2::HBox), 0, 1, 0);
 
-   $hbox->add(new Gtk2::Label "Login");
+   $hbox->add (new Gtk2::Label "Login");
 
-   $hbox->add($self->{login} = new_with_max_length Gtk2::Entry 12);
-   $self->{login}->set_text($::config->{login});
+   $hbox->add ($self->{login} = new_with_max_length Gtk2::Entry 12);
+   $self->{login}->set_text ($::config->{login});
 
-   $hbox->add(new Gtk2::Label "Password");
-   $hbox->add($self->{password} = new Gtk2::Entry);
+   $hbox->add (new Gtk2::Label "Password");
+   $hbox->add ($self->{password} = new Gtk2::Entry);
    $self->{password}->set_visibility(0);
 
    $self->{gamelist} = new gamelist conn => $self->{conn}, app => $self;
-   $vbox->pack_start ($self->{gamelist}->widget, 1, 1, 0);
+   $vbox->pack_start ($self->{gamelist}, 1, 1, 0);
 
    $vbox->pack_start(($self->{status} = new Gtk2::Statusbar), 0, 1, 0);
 
-   $self->{window}->show_all;
+   $self->show_all;
 
    $self;
 }
@@ -78,8 +80,7 @@ sub login {
    $self->{conn}->disconnect;
 
    # initialize new socket and connection
-   #my $sock = new IO::Socket::INET PeerHost => "kgs.kiseido.com", PeerPort => "2379"
-   my $sock = new IO::Socket::INET PeerHost => $ENV{KGSHOST} || "kgs.kiseido.com", PeerPort => "2379"
+   my $sock = new IO::Socket::INET PeerHost => KGS::Protocol::KGSHOST, PeerPort => KGS::Protocol::KGSPORT
       or die "connect: $!";
 
    $sock->blocking(1);
@@ -194,7 +195,7 @@ sub open_room {
 
    ($self->{room}{$arg{channel}} ||= new room %arg, conn => $self->{conn}, app => $self)
       ->join;
-   Scalar::Util::weaken $self->{game}{$arg{channel}};
+   Scalar::Util::weaken $self->{room}{$arg{channel}};
    $self->{room}{$arg{channel}};
 }
 

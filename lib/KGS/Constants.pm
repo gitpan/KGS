@@ -15,8 +15,7 @@ BEGIN {
    @EXPORT = qw(
 
       
-      GAMETYPE_DEMONSTRATION GAMETYPE_TEACHING GAMETYPE_FREE GAMETYPE_RATED GAMETYPE_TYPE4 
-      GAMEOPT_NONE GAMEOPT_LECTURE GAMEOPT_PRIVATE GAMEOPT_SIMUL 
+      GAMETYPE_DEMONSTRATION GAMETYPE_EDITING GAMETYPE_TEACHING GAMETYPE_SIMUL GAMETYPE_FREE GAMETYPE_RATED GAMETYPE_PRIVATE 
       GAMEFLAG_SCORED GAMEFLAG_ADJOURNED GAMEFLAG_UPLOADED 
       ROOMFLAG_ADMIN ROOMFLAG_DEFAULT ROOMFLAG_PRIVATE 
       GAMESTATUS_INPLAY 
@@ -26,7 +25,7 @@ BEGIN {
       COLOUR_BLACK COLOUR_WHITE 
       
 
-      %ruleset %timesys %gametype %gameopt %special_score %room_group
+      %ruleset %timesys %gametype %special_score %room_group
       
       INTERVAL_GAMEUPDATES
    );
@@ -35,14 +34,12 @@ BEGIN {
 
 
 sub GAMETYPE_DEMONSTRATION () { 0 }
-sub GAMETYPE_TEACHING () { 1 }
-sub GAMETYPE_FREE () { 2 }
-sub GAMETYPE_RATED () { 3 }
-sub GAMETYPE_TYPE4 () { 4 }
-sub GAMEOPT_NONE () { 0 }
-sub GAMEOPT_LECTURE () { 1 }
-sub GAMEOPT_PRIVATE () { 2 }
-sub GAMEOPT_SIMUL () { 3 }
+sub GAMETYPE_EDITING () { 1 }
+sub GAMETYPE_TEACHING () { 2 }
+sub GAMETYPE_SIMUL () { 3 }
+sub GAMETYPE_FREE () { 4 }
+sub GAMETYPE_RATED () { 5 }
+sub GAMETYPE_PRIVATE () { 128 }
 sub GAMEFLAG_SCORED () { 1 }
 sub GAMEFLAG_ADJOURNED () { 2 }
 sub GAMEFLAG_UPLOADED () { 4 }
@@ -77,19 +74,10 @@ sub INTERVAL_GAMEUPDATES   () { 60 } # request game list updates this often (sec
 
 %gametype = (
     &GAMETYPE_DEMONSTRATION => "demonstration",
+    &GAMETYPE_EDITING       => "editing",
     &GAMETYPE_TEACHING      => "teaching",
     &GAMETYPE_FREE          => "free",
     &GAMETYPE_RATED         => "rated",
-    &GAMETYPE_TYPE4         => "<no idea, pls tell me>",
-);
-
-# game option (/ 5)
-
-%gameopt = (
-   &GAMEOPT_NONE    => "normal",
-   &GAMEOPT_LECTURE => "lecture",
-   &GAMEOPT_PRIVATE => "private",
-   &GAMEOPT_SIMUL   => "simul",
 );
 
 # special score values.

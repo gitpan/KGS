@@ -15,7 +15,7 @@ sub new {
 
    $vbox->add (my $hbox = new Gtk2::HBox);
 
-   $hbox->add (($self->{userlist} = new userlist)->widget);
+   $hbox->add ($self->{userlist} = new userlist);
 
    $vbox->add (my $hbox = new Gtk2::HButtonBox);
 

@@ -57,7 +57,7 @@ sub new {
 
    print STDERR "$0 version $VERSION connecting...\n" if $verbose;
 
-   my $sock = new IO::Socket::INET PeerHost => $ENV{KGSHOST} || "kgs.kiseido.com", PeerPort => "2379"
+   my $sock = new IO::Socket::INET PeerHost => KGS::Protocol::KGSHOST, PeerPort => KGS::Protocol::KGSPORT
       or die "connect: $!";
 
    $sock->blocking (1);

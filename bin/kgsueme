@@ -35,16 +35,32 @@ BEGIN {
 
    use KGS::Constants;
 
-   for (qw(util.pl gtk.pl chat.pl sound.pl user.pl gamelist.pl userlist.pl challenge.pl
+   for (qw(util.pl gtk.pl chat.pl superchat.pl sound.pl user.pl gamelist.pl userlist.pl challenge.pl
            game.pl room.pl roomlist.pl app.pl)) {
       require (KGS::Constants::findfile "KGS/kgsueme/$_");
       die if $@;
    }
 }
 
-our $app = new app;
-
 if ($ENV{KGSUEME_DEBUG}) {
+   my $window = new Gtk2::Window 'toplevel';
+   my $chat = new superchat;
+
+   $window->add ($chat);
+   show_all $window;
+
+   $chat->append_text ("A\n");
+   $chat->append_text ("B\n");
+   $chat->append_text ("C\n");
+   $chat->append_text ("D\n");
+
+   $chat->{full}->clear;
+
+   $chat->append_text ("F\n");
+   $chat->append_text ("G\n");
+
+   main Gtk2;
+   
    use KGS::Constants;
 
    for (19) {
@@ -87,6 +103,8 @@ if ($ENV{KGSUEME_DEBUG}) {
       $game->{window}->show_all;
    }
 }
+
+our $app = new app;
 
 main Gtk2;
 

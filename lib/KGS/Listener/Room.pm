@@ -173,11 +173,6 @@ after messages for this room have already been received.
 
 =cut
 
-sub event_join {
-   my ($self) = @_;
-   $self->SUPER::event_join;
-}
-
 =item $room->event_part
 
 Called when the user left the room.
@@ -187,7 +182,7 @@ Called when the user left the room.
 sub event_part {
    my ($self) = @_;
    $self->SUPER::event_part;
-   $self->event_update_games ([], [], [values %{delete $self->{games}}]);
+   $self->event_update_games ([], [], [values %{delete $self->{games} || {}}]);
 }
 
 =item $room->event_update_games ($add, $update, $remove)

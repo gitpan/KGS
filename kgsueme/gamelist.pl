@@ -2,21 +2,26 @@ package gamelist;
 
 use KGS::Constants;
 
-use base gtk::widget;
+use Glib::Object::Subclass
+   Gtk2::VPaned;
 
 sub new {
-   my $class = shift;
-   my $self = $class->SUPER::new(@_);
+   my ($class, %arg) = @_;
+   my $self = $class->Glib::Object::new;
+   $self->{$_} = delete $arg{$_} for keys %arg;
 
-   $self->{widget} = new Gtk2::VPaned;
-   $self->{widget}->set(position_set => 1);
-   gtk::state $self->{widget}, "gamelist::vpane", undef, position => 60;
+   $self->signal_connect (destroy => sub {
+      %{$_[0]} = ();
+   });
+
+   $self->set(position_set => 1);
+   gtk::state $self, "gamelist::vpane", undef, position => 60;
 
    $self->{model1} = new Gtk2::ListStore Glib::Scalar,
         Glib::String, Glib::String, Glib::String, Glib::String, Glib::Int, Glib::String, Glib::String;
    gtk::state $self->{model1}, "gamelist::model1", undef, modelsortorder => [4, 'descending'];
 
-   $self->{widget}->add(my $sw = new Gtk2::ScrolledWindow);
+   $self->add(my $sw = new Gtk2::ScrolledWindow);
    $sw->set_policy("never", "always");
    $sw->add($self->{view1} = new Gtk2::TreeView $self->{model1});
    $self->{view1}->set (rules_hint => 1, search_column => 2);
@@ -26,7 +31,7 @@ sub new {
         Glib::String, Glib::String, Glib::Int, Glib::Int, Glib::Int, Glib::String;
    gtk::state $self->{model2}, "gamelist::model1", undef, modelsortorder => [4, 'descending'];
 
-   $self->{widget}->add(my $sw = new Gtk2::ScrolledWindow);
+   $self->add(my $sw = new Gtk2::ScrolledWindow);
    $sw->set_policy("never", "always");
    $sw->add($self->{view2} = new Gtk2::TreeView $self->{model2});
    $self->{view2}->set_search_column(1);
@@ -115,14 +120,14 @@ sub new {
    $self->{view1}->signal_connect(row_activated => sub {
       my ($widget, $path, $column) = @_;
       my $game = $self->{model1}->get ($self->{model1}->get_iter ($path), 0);
-      $self->{app}->open_game (%$game);
+      $self->{app}->open_game (%$game); # challenging private game sis allowed
       1;
    });
 
    $self->{view2}->signal_connect(row_activated => sub {
       my ($widget, $path, $column) = @_;
       my $game = $self->{model2}->get ($self->{model2}->get_iter ($path), 0);
-      $self->{app}->open_game (%$game);
+      $self->{app}->open_game (%$game) unless $game->is_private;
       1;
    });
 

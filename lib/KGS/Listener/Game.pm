@@ -47,7 +47,7 @@ sub inject_upd_game {
 
    my $game = $msg->{game};
 
-   while (my ($k, $v) = each %$game) { $self->{$k} = $v };
+   while (my ($k, $v) = each %$game) { $self->{$k} = $v }
    $self->event_update_game;
 }
 

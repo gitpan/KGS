@@ -1,37 +1,39 @@
 package userlist;
 
-use base gtk::widget;
+use Glib::Object::Subclass
+   Gtk2::TreeView;
 
 sub new {
-   my $class = shift;
-   my $self = $class->SUPER::new(@_);
+   my ($self, %arg) = @_;
+   $self = $self->Glib::Object::new;
+   $self->{$_} = delete $arg{$_} for keys %arg;
 
-   $self->{model} = new Gtk2::ListStore Glib::String, Glib::String, Glib::String, Glib::Int, Glib::String;
+   $self->signal_connect (destroy => sub { %{$_[0]} = () });
+
+   $self->set_model ($self->{model} = new Gtk2::ListStore Glib::String, Glib::String, Glib::String, Glib::Int, Glib::String);
    gtk::state $self->{model}, "userlist::model", undef, modelsortorder => [2, 'descending'];
 
-   $self->{widget} = new Gtk2::TreeView $self->{model};
-
-   $self->{widget}->set (rules_hint => 0, search_column => 1);
+   $self->set (rules_hint => 0, search_column => 1);
 
    my $column = $self->{rlcolumns}[0] =
       Gtk2::TreeViewColumn->new_with_attributes ("Name", $gtk::text_renderer, text => 0);
-   $column->set_sort_column_id(1);
-   $column->set(sizing => 'grow-only');
-   $self->{widget}->append_column ($column);
+   $column->set_sort_column_id (1);
+   $column->set (sizing => 'grow-only');
+   $self->append_column ($column);
 
    my $column = $self->{rlcolumns}[1] =
       Gtk2::TreeViewColumn->new_with_attributes ("Rk", $gtk::text_renderer, text => 2);
-   $column->set_sort_column_id(3);
-   $column->set(sizing => 'grow-only');
-   $self->{widget}->append_column ($column);
+   $column->set_sort_column_id (3);
+   $column->set (sizing => 'grow-only');
+   $self->append_column ($column);
 
    my $column = $self->{rlcolumns}[2] =
       Gtk2::TreeViewColumn->new_with_attributes ("Flags", $gtk::text_renderer, text => 4);
-   $column->set(resizable => 1);
-   $column->set(sizing => 'grow-only');
-   $self->{widget}->append_column ($column);
+   $column->set (resizable => 1);
+   $column->set (sizing => 'grow-only');
+   $self->append_column ($column);
 
-   $self->{widget}->signal_connect(row_activated => sub {
+   $self->signal_connect (row_activated => sub {
       my ($widget, $path, $column) = @_;
       my $user = $self->{users}{$self->{model}->get ($self->{model}->get_iter ($path), 0)}
          or return 1;

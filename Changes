@@ -1,5 +1,13 @@
 Revision history for Perl extension KGS.
 
+0.3  Tue May 25 22:24:45 CEST 2004
+	- 2.6.0 protocol changes triggered this release. a few
+          details are probably not worked out yet.
+	- more packet types and info.
+        - more resistance against the mysterios node type 26.
+        - kgstrace no longer displays userpic data.
+        - major code cleanup in sample client (still horrible :).
+
 0.2  Mon May 17 03:35:10 CEST 2004
 	- added a Changes file.
 	- lots of bugfixes.

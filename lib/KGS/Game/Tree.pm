@@ -83,7 +83,7 @@ sub update_tree {
 
          if ($type eq "move") {
             $self->{lastmove_time}   = $KGS::Protocol::NOW;
-            $self->{lastmove_colour} = $arg[1];
+            $self->{lastmove_colour} = $arg[0];
             $up_move = $arg[1] == 255 if $self->{loaded};
          }
 

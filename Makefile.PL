@@ -90,6 +90,7 @@ WriteMakefile(
        'kgsueme/app.pl'			=> '$(INST_LIBDIR)/KGS/kgsueme/app.pl',
        'kgsueme/challenge.pl'		=> '$(INST_LIBDIR)/KGS/kgsueme/challenge.pl',
        'kgsueme/chat.pl'		=> '$(INST_LIBDIR)/KGS/kgsueme/chat.pl',
+       'kgsueme/superchat.pl'		=> '$(INST_LIBDIR)/KGS/kgsueme/superchat.pl',
        'kgsueme/game.pl'		=> '$(INST_LIBDIR)/KGS/kgsueme/game.pl',
        'kgsueme/gamelist.pl'		=> '$(INST_LIBDIR)/KGS/kgsueme/gamelist.pl',
        'kgsueme/gtk.pl'			=> '$(INST_LIBDIR)/KGS/kgsueme/gtk.pl',

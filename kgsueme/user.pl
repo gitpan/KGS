@@ -3,22 +3,26 @@ package user;
 use List::Util;
 
 use base KGS::Listener::User;
-use base gtk::widget;
+
+use Glib::Object::Subclass
+   Gtk2::Window;
 
 sub new {
-   my $self = shift;
-   $self = $self->SUPER::new(@_);
+   my ($self, %arg) = @_;
+   $self = $self->Glib::Object::new;
+   $self->{$_} = delete $arg{$_} for keys %arg;
 
-   $self->listen($self->{conn});
+   $self->listen ($self->{conn});
 
    $self->send (notify_add => name => $self->{name})
       unless (lc $self->{name}) eq (lc $self->{app}{name});
 
-   $self->{window} = new Gtk2::Window 'toplevel';
-   $self->event_name;
-   gtk::state $self->{window}, "user::window", undef, window_size => [400, 300];
+   gtk::state $self, "user::window", undef, window_size => [400, 300];
 
-   $self->{window}->signal_connect(delete_event => sub { $self->destroy; 1 });
+   $self->event_name;
+
+   $self->signal_connect (destroy => sub { %{$_[0]} = () });
+   $self->signal_connect (delete_event => sub { $self->destroy; 1 });
 
    my $notebook = new Gtk2::Notebook;
 
@@ -30,7 +34,7 @@ sub new {
       $self->usergraph   if $page == 3;
    });
 
-   $self->{window}->add ($notebook);
+   $self->add ($notebook);
 
    $self->{chat} = new chat;
    $self->{chat}->signal_connect(command => sub {
@@ -40,18 +44,14 @@ sub new {
 
    $notebook->append_page ($self->{chat}, (new_with_mnemonic Gtk2::Label "_Chat"));
 
-
    $self->{page_userinfo} = new Gtk2::Table 3, 5, 0;
    $notebook->append_page ($self->{page_userinfo}, (new_with_mnemonic Gtk2::Label "_Info"));
-
 
    $self->{page_record} = new Gtk2::VBox;
    $notebook->append_page ($self->{page_record}, (new_with_mnemonic Gtk2::Label "_Record"));
 
-
    $self->{page_graph} = new Gtk2::Curve;
    $notebook->append_page ($self->{page_graph}, (new_with_mnemonic Gtk2::Label "_Graph"));
-
 
    $self;
 }
@@ -59,13 +59,13 @@ sub new {
 sub join {
    my ($self) = @_;
 
-   $self->{window}->show_all;
+   $self->show_all;
 }
 
 sub event_name {
    my ($self) = @_;
 
-   $self->{window}->set_title("KGS User $self->{name}");
+   $self->set_title("KGS User $self->{name}");
 }
 
 sub event_userinfo {

@@ -22,7 +22,7 @@
 </head>
 <body>
 
-<h1>$Revision: 1.48 $</h1>
+<h1>$Revision: 1.54 $</h1>
 
 <h1>KGS Protocol Description</h1>
 
@@ -266,99 +266,20 @@
        </td>
       </tr>
       <tr>
+        <td>EDITING</td>
+        <td></td>
+        <td>1 </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
         <td>TEACHING</td>
-        <td></td>
-        <td>1 </td>
-        <td>
-      
-            
-       </td>
-        <td>
-          <b></b> 
-            
-       </td>
-      </tr>
-      <tr>
-        <td>FREE</td>
-        <td></td>
-        <td>2 </td>
-        <td>
-      
-            
-       </td>
-        <td>
-          <b></b> 
-            
-       </td>
-      </tr>
-      <tr>
-        <td>RATED</td>
-        <td></td>
-        <td>3 </td>
-        <td>
-      
-            
-       </td>
-        <td>
-          <b></b> 
-            
-       </td>
-      </tr>
-      <tr>
-        <td>TYPE4</td>
-        <td></td>
-        <td>4 </td>
-        <td>
-      Probably not used, but the protocol has space for it it seems.
-   
-            
-       </td>
-        <td>
-          <b></b> 
-            
-       </td>
-      </tr>
-    </table>
-
-   <h4>enum: GAMEOPT</h4>
-    <p>
-      </p>
-    <table border="1" width="100%">
-      <tr>
-        <th width="10%">NAME</th>
-        <th width="8%">TYPE</th>
-        <th width="4%">VALUE</th>
-        <th>DESCRIPTION</th>
-        <th width="10%">GUARD</th>
-      </tr>
-      <tr>
-        <td>NONE</td>
-        <td></td>
-        <td>0 </td>
-        <td>
-      
-            
-       </td>
-        <td>
-          <b></b> 
-            
-       </td>
-      </tr>
-      <tr>
-        <td>LECTURE</td>
-        <td></td>
-        <td>1 </td>
-        <td>
-      
-            
-       </td>
-        <td>
-          <b></b> 
-            
-       </td>
-      </tr>
-      <tr>
-        <td>PRIVATE</td>
         <td></td>
         <td>2 </td>
         <td>
@@ -375,7 +296,46 @@
         <td></td>
         <td>3 </td>
         <td>
-   
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>FREE</td>
+        <td></td>
+        <td>4 </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>RATED</td>
+        <td></td>
+        <td>5 </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>PRIVATE</td>
+        <td></td>
+        <td>128 </td>
+        <td>
+      
             
        </td>
         <td>
@@ -1013,7 +973,7 @@
       <tr>
         <td>ver_minor</td>
         <td>U32</td>
-        <td>5 </td>
+        <td>6 </td>
         <td>
       
             
@@ -1026,7 +986,7 @@
       <tr>
         <td>ver_micro</td>
         <td>U32</td>
-        <td>2 </td>
+        <td>0 </td>
         <td>
       
             
@@ -1104,10 +1064,10 @@
       <tr>
         <td>clientver</td>
         <td>DATA</td>
-        <td>"1.4.1_01:Swing app:Sun Microsystems Inc." </td>
+        <td>"1.4.2_03:Swing app:Sun Microsystems Inc." </td>
         <td>
       The "default" is the java vm version, not exactly he client version. However,
-      you should always send a text like "Jonathan's C client bersion 0.6" or somesuch,
+      you should always send a text like "Jonathan's C client version 0.6" or somesuch,
       so the server can, if necessary, block broken clients or client versions.
    
             
@@ -2055,8 +2015,21 @@
        </td>
       </tr>
       <tr>
-        <td>gametype</td>
-        <td>U32</td>
+        <td>type</td>
+        <td>U8</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>flags</td>
+        <td>U8</td>
         <td> </td>
         <td>
       
@@ -2674,8 +2647,9 @@
       <a name="C441a"></a>ORIGIN: CLIENT;
       MESSAGE: set_teacher</h4>
    NUMERIC TYPE (hex): 441a<p>
-      Change the teacher to somebody else (or possibly yourself == take it).
-      </p>
+      <p>Change the teacher to somebody else (or possibly yourself == take it). If the
+      name is empty, the game will continue normally.</p>
+    </p>
     <table border="1" width="100%">
       <tr>
         <th width="10%">NAME</th>
@@ -2716,9 +2690,8 @@
       <a name="C4422"></a>ORIGIN: CLIENT;
       MESSAGE: allow_user</h4>
    NUMERIC TYPE (hex): 4422<p>
-      Unclear. Maybe allow users to talk? No idea, really.
-
-      </p>
+      <p>Unclear. Maybe allow users to talk? No idea, really.</p>
+    </p>
     <table border="1" width="100%">
       <tr>
         <th width="10%">NAME</th>
@@ -6857,6 +6830,88 @@
       <tr>
         <td>quiet</td>
         <td>U8</td>
+        <td> </td>
+        <td>
+   
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>
+      <a name="S4437"></a>ORIGIN: SERVER;
+      MESSAGE: set_endtime</h4>
+   NUMERIC TYPE (hex): 4437<p>
+      <p>Sent when joining a scored game (not when scoring). Probably
+      gives the remaining time + periods/moves for the players.</p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>channel</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>btime</td>
+        <td>time</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>bcount</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>wtime</td>
+        <td>time</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>wcount</td>
+        <td>U16</td>
         <td> </td>
         <td>
    

@@ -29,7 +29,7 @@ BEGIN {
       </xsl:for-each>
       <![CDATA[
 
-      %ruleset %timesys %gametype %gameopt %special_score %room_group
+      %ruleset %timesys %gametype %special_score %room_group
       
       INTERVAL_GAMEUPDATES
    );
@@ -53,19 +53,10 @@ sub INTERVAL_GAMEUPDATES   () { 60 } # request game list updates this often (sec
 
 %gametype = (
     &GAMETYPE_DEMONSTRATION => "demonstration",
+    &GAMETYPE_EDITING       => "editing",
     &GAMETYPE_TEACHING      => "teaching",
     &GAMETYPE_FREE          => "free",
     &GAMETYPE_RATED         => "rated",
-    &GAMETYPE_TYPE4         => "<no idea, pls tell me>",
-);
-
-# game option (/ 5)
-
-%gameopt = (
-   &GAMEOPT_NONE    => "normal",
-   &GAMEOPT_LECTURE => "lecture",
-   &GAMEOPT_PRIVATE => "private",
-   &GAMEOPT_SIMUL   => "simul",
 );
 
 # special score values.

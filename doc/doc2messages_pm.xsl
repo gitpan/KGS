@@ -29,6 +29,8 @@ our %enc_server; # encode messages received from server
 
 my $data; # stores currently processed decoding/encoding packet
 
+sub _set_data($) { $data = shift } # for debugging or special apps only
+
 # primitive enc/decoders
 
 #############################################################################
@@ -167,9 +169,12 @@ sub enc_HEX {
 # this was the most horrible thing to decode. still not everything is decoded correctly(?)
 sub dec_TREE {
    my @r;
+   my $old_data = $data;#d#
    while (length $data) {
       my $type = dec_U8;
       my $add = $type < 128;
+
+      my $ofs = (length $old_data) - (length $data);#d#
 
       $type &= 127;
 
@@ -188,12 +193,16 @@ sub dec_TREE {
 
       } elsif ($type == 29) {
          push @r, [type_29 => dec_ZSTRING];
-         warn "TYPE 29 $r[-1][1]\007 PLEASE REPORT";#d#
+         warn "UNKNOWN TREE TYPE 29 $r[-1][1]\007 PLEASE REPORT";#d#
          die;
 
       } elsif ($type == 28) {
          # move number, only in variations it seems. oh my.
          push @r, [movenum => dec_ZSTRING];
+
+      } elsif ($type == 26) {
+         push @r, [type_26 => dec_U8]; # sets a flag (?)
+         warn "unknown tree node 26, PLEASE REPORT AND INCLUDE THE GAME\n";
 
       } elsif ($type == 25) {
          push @r, [result => dec_result];
@@ -205,22 +214,27 @@ sub dec_TREE {
          push @r, [mark => $add, dec_U8() ? MARK_SMALL_W : MARK_SMALL_B, dec_U8, dec_U8];
 
       } elsif ($type == 21) {
-         push @r, [mark => $add, MARK_CIRCLE, dec_U8, dec_U8];
-
-      } elsif ($type == 20) {
          push @r, [mark => $add, MARK_SQUARE, dec_U8, dec_U8];
 
-      } elsif ($type == 19) {
+      } elsif ($type == 20) {
          push @r, [mark => $add, MARK_TRIANGLE, dec_U8, dec_U8];
 
-      } elsif ($type == 18) {
+      } elsif ($type == 19) {
          push @r, [mark => $add, MARK_LABEL, dec_U8, dec_U8, dec_ZSTRING];
+         #push @r, [unknown_18 => dec_U8, dec_U32, dec_U32, dec_U8, dec_U32, dec_U32, dec_U32];
+         #push @r, [set_timer => (dec_U8, dec_U32, dec_time)[0,2,1]];
 
-      } elsif ($type == 17) {
+      } elsif ($type == 18) {
          push @r, [set_timer => (dec_U8, dec_U32, dec_time)[0,2,1]];
 
-      } elsif ($type == 16) {
-         push @r, [set_stone => dec_U8, dec_U8, dec_U8];
+      } elsif ($type == 17) {
+         push @r, [set_stone => dec_U8, dec_U8, dec_U8];#d#?
+
+#      } elsif ($type == 16) {
+#         push @r, [set_stone => dec_U8, dec_U8, dec_U8];#o#
+
+      } elsif ($type == 15) {
+         push @r, [mark => $add, MARK_CIRCLE, dec_U8, dec_U8];#d#?
 
       } elsif ($type == 14) {
          push @r, [move => dec_U8, dec_U8, dec_U8];
@@ -232,7 +246,7 @@ sub dec_TREE {
          push @r, [({
                4 => "date",
                5 => "unknown_comment5",
-               6 => "unknown_comment6",
+               6 => "game_id", #?#
                7 => "unknown_comment7",
                8 => "unknown_comment8",
                9 => "copyright", #?
@@ -248,6 +262,9 @@ sub dec_TREE {
       } elsif ($type == 2) {
          push @r, [player => dec_U8, dec_ZSTRING];
 
+      } elsif ($type == 1) {
+         push @r, [sgf_name => dec_ZSTRING];
+
       } elsif ($type == 0) {
          # as usual, wms finds yet another way to duplicate code... oh well, what a mess.
          # (no wonder he is so keen on keeping it a secret...)
@@ -257,12 +274,19 @@ sub dec_TREE {
       # OLD
 
       } else {
+         require KGS::Listener::Debug; # hack
          print STDERR KGS::Listener::Debug::dumpval(\@r);
-         open XTYPE, "|xtype"; print XTYPE $data; close XTYPE;
-         die "unknown tree type $type, PLEASE REPORT and include the game you wanted to watch. thx.";
+         printf "offset: 0x%04x\n", $ofs;
+         open XTYPE, "|xtype"; print XTYPE $old_data; close XTYPE;
+         warn "unknown tree type $type, PLEASE REPORT and include the game you wanted to watch. thx.";
 
       }
+
+      push @{$r[-1]}, offset => sprintf "0x%x", $ofs;#d#
+      
    }
+#         print STDERR KGS::Listener::Debug::dumpval(\@r);#d#
+#            return [];#d#
    \@r;
 }
 
@@ -308,10 +332,10 @@ sub enc_TREE {
                   &MARK_GRAYED   => 23,
                   &MARK_SMALL_B  => 22,
                   &MARK_SMALL_W  => 22,
-                  &MARK_CIRCLE   => 21,
-                  &MARK_SQUARE   => 20,
-                  &MARK_TRIANGLE => 19,
-                  &MARK_LABEL    => 18,
+                  &MARK_SQUARE   => 21,
+                  &MARK_TRIANGLE => 20,
+                  &MARK_LABEL    => 19,
+                  &MARK_CIRCLE   => 15,
                 })->{$arg[1]};
 
          enc_U8 $op + ($arg[0] ? 0 : 128);
@@ -320,6 +344,14 @@ sub enc_TREE {
          enc_U8 $arg[3];
 
          enc_ZSTRING $arg[4] if $op == 18;
+
+      # unknown types
+      } elsif ($type eq "type_29") {
+         enc_U8 29;
+         enc_ZSTRING $arg[0];
+      } elsif ($type eq "type_26") {
+         enc_U8 26;
+         enc_U8 $arg[0];
 
       } else {
          warn "unable to encode tree node type $type\n";

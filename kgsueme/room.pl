@@ -3,53 +3,59 @@ package room;
 use KGS::Constants;
 
 use base KGS::Listener::Room;
-use base gtk::widget;
+
+use Glib::Object::Subclass
+   Gtk2::Window;
 
 sub new {
-   my $self = shift;
-   $self = $self->SUPER::new(@_);
+   my ($self, %arg) = @_;
+   $self = $self->Glib::Object::new;
+   $self->{$_} = delete $arg{$_} for keys %arg;
 
-   $self->listen($self->{conn}, qw(msg_room:));
+   $self->signal_connect (delete_event => sub { $self->part; 1 });
+   $self->signal_connect (destroy => sub {
+      delete $::config->{rooms}{$self->{channel}};
+      delete $self->{app}{room}{$self->{channel}};
+      (remove Glib::Source delete $self->{gameupdate}) if $self->{gameupdate};
+      $self->unlisten;
+      %{$_[0]} = ();
+   });
 
-   $self->{window} = new Gtk2::Window 'toplevel';
-   $self->{window}->set_title("KGS Room $self->{name}");
-   gtk::state $self->{window}, "room::window", $self->{name}, window_size => [600, 400];
+   $self->listen ($self->{conn}, qw(msg_room:));
 
-   $self->{window}->signal_connect(delete_event => sub { $self->part; 1 });
+   $self->set_title ("KGS Room $self->{name}");
+   gtk::state $self, "room::window", $self->{name}, window_size => [600, 400];
 
-   $self->{window}->add($self->{hpane} = new Gtk2::HPaned);
-   $self->{hpane}->set(position_set => 1);
+   $self->signal_connect (delete_event => sub { $self->part; 1 });
+
+   $self->add ($self->{hpane} = new Gtk2::HPaned);
+   $self->{hpane}->set (position_set => 1);
    gtk::state $self->{hpane}, "room::hpane", $self->{name}, position => 200;
 
-   $self->{hpane}->pack1((my $vbox = new Gtk2::VBox), 1, 1);
+   $self->{hpane}->pack1 ((my $vbox = new Gtk2::VBox), 1, 1);
    
-   $vbox->add($self->{chat} = new chat);
+   $vbox->add ($self->{chat} = new chat);
 
    $self->{chat}->signal_connect(command => sub {
       my ($chat, $cmd, $arg) = @_;
       $self->{app}->do_command ($chat, $cmd, $arg, userlist => $self->{userlist}, room => $self);
    });
 
-   $self->{hpane}->pack2((my $sw = new Gtk2::ScrolledWindow), 0, 1);
+   $self->{hpane}->pack2 ((my $sw = new Gtk2::ScrolledWindow), 0, 1);
    $sw->set_policy("automatic", "always");
 
-   $sw->add(($self->{userlist} = new userlist)->widget);
+   $sw->add ($self->{userlist} = new userlist);
 
    $self;
 }
 
-sub join {
-   my ($self) = @_;
-   $self->SUPER::join;
-
-   $self->{window}->show_all;
-}
+sub FINALIZE_INSTANCE { print "FIN room\n" } # never called MEMLEAK #d#TODO#
 
 sub part {
    my ($self) = @_;
    $self->SUPER::part;
 
-   $self->destroy; # yeaha
+   $self->hide_all;
 }
 
 sub inject_msg_room {
@@ -83,17 +89,15 @@ sub event_join {
       $self->req_games;
       1;
    };
+
+   $self->show_all;
 }
 
 sub event_part {
    my ($self) = @_;
 
-   delete $::config->{rooms}{$self->{channel}};
-   delete $self->{app}{roomlist}{room}{$self->{channel}};
-   (remove Glib::Source delete $self->{gameupdate}) if $self->{gameupdate};
-   $self->unlisten;
-
    $self->SUPER::event_part;
+   $self->destroy;
 }
 
 sub event_update_roominfo {
@@ -101,14 +105,6 @@ sub event_update_roominfo {
 
    $self->{chat}->append_text("\n<user>" . (util::toxml $self->{owner}) . "</user>\n"
                               . "<description>" . (util::toxml $self->{description}) . "</description>\n");
-}
-
-sub destroy {
-   my ($self) = @_;
-
-   $self->event_part;
-
-   $self->SUPER::destroy;
 }
 
 1;

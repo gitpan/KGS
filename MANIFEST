@@ -49,6 +49,7 @@ kgsueme/util.pl
 kgsueme/roomlist.pl
 kgsueme/user.pl
 kgsueme/chat.pl
+kgsueme/superchat.pl
 
 images/default_userpic.png
 

@@ -1,5 +1,7 @@
 use utf8;
 
+use Scalar::Util ();
+
 package game::goclock;
 
 # Lo and Behold! I admit it! The rounding stuff etc.. in goclock
@@ -9,18 +11,16 @@ use Time::HiRes ();
 
 use KGS::Constants;
 
-use base gtk::widget;
+use Glib::Object::Subclass
+   Gtk2::Label;
 
-sub new {
-   my $class = shift;
-   my $self = $class->SUPER::new(@_);
+sub INIT_INSTANCE {
+   my $self = shift;
 
-   $self->{widget} = new Gtk2::Label;
+   $self->signal_connect (destroy => sub { $_[0]->stop });
 
    $self->{set}    = sub { };
-   $self->{format} = sub { "ERROR" };
-
-   $self;
+   $self->{format} = sub { "???" };
 }
 
 sub configure {
@@ -77,7 +77,7 @@ sub refresh {
    # we round the timer value slightly... the protocol isn't exact anyways,
    # and this gives smoother timers ;)
    my @format = $self->{format}->(int ($timer + 0.4));
-   $self->{widget}->set_text ($self->{format}->(int ($timer + 0.4)));
+   $self->set_text ($self->{format}->(int ($timer + 0.4)));
 
    $timer - int $timer;
 }
@@ -120,27 +120,22 @@ sub stop {
    remove Glib::Source delete $self->{timeout} if $self->{timeout};
 }
 
-sub destroy {
-   my ($self) = @_;
-   $self->stop;
-   $self->SUPER::destroy;
-}
-
 package game::userpanel;
 
-use base gtk::widget;
+use Glib::Object::Subclass
+   Gtk2::HBox,
+   properties => [
+      Glib::ParamSpec->IV ("colour", "colour", "User Colour", 0, 1, 0, [qw(construct-only writable)]),
+   ];
 
-sub new {
-   my $class = shift;
-   my $self = $class->SUPER::new(@_);
+sub INIT_INSTANCE {
+   my ($self) = @_;
 
-   $self->{widget} = new Gtk2::HBox;
-
-   $self->{widget}->add (my $vbox = new Gtk2::VBox);
+   $self->add (my $vbox = new Gtk2::VBox);
 
    $vbox->add ($self->{name} = new Gtk2::Label $self->{name});
    $vbox->add ($self->{info} = new Gtk2::Label "");
-   $vbox->add (($self->{clock} = new game::goclock)->widget);
+   $vbox->add ($self->{clock} = new game::goclock); Scalar::Util::weaken $self->{clock};
 
    $vbox->add ($self->{imagebox} = new Gtk2::VBox);
 
@@ -186,51 +181,58 @@ sub set_state {
 
 package game;
 
+use Scalar::Util qw(weaken);
+
 use KGS::Constants;
 use KGS::Game::Board;
 
 use Gtk2::GoBoard;
 
+use Glib::Object::Subclass
+   Gtk2::Window;
+
 use base KGS::Listener::Game;
 use base KGS::Game;
-
-use base gtk::widget;
 
 use POSIX qw(ceil);
 
 sub new {
-   my $self = shift;
-   $self = $self->SUPER::new(@_);
+   my ($self, %arg) = @_;
+   $self = $self->Glib::Object::new;
+   $self->{$_} = delete $arg{$_} for keys %arg;
 
-   $self->listen($self->{conn});
+   $self->listen ($self->{conn});
 
-   $self->{window} = new Gtk2::Window 'toplevel';
-   gtk::state $self->{window}, "game::window", undef, window_size => [600, 500];
+   gtk::state $self, "game::window", undef, window_size => [600, 500];
 
-   $self->{window}->signal_connect(delete_event => sub {
-      $self->part;
-      $self->destroy;
-      1;
-   });
+   $self->signal_connect (delete_event => sub { $self->part; 1 });
+   $self->signal_connect (destroy => sub {
+      $self->unlisten;
+      delete $self->{app}{game}{$self->{channel}};
+      %{$_[0]} = ();
+   });#d#
 
-   $self->{window}->add($self->{hpane} = new Gtk2::HPaned);
-   gtk::state $self->{hpane}, "game::hpane", undef, position => 500;
+   $self->add (my $hpane = new Gtk2::HPaned);
+   gtk::state $hpane, "game::hpane", undef, position => 500;
 
    # LEFT PANE
 
-   $self->{hpane}->pack1(($self->{left} = new Gtk2::VBox), 1, 0);
+   $hpane->pack1 (($self->{left} = new Gtk2::VBox), 1, 0);
    
    $self->{boardbox} = new Gtk2::VBox;
 
-   $self->{hpane}->pack1((my $vbox = new Gtk2::VBox), 1, 1);
+   $hpane->pack1((my $vbox = new Gtk2::VBox), 1, 1);
 
-   # challenge
-
-   $self->{challenge} = new challenge channel => $self->{channel};
-   
    # board box (aspect/canvas)
    
-   $self->{boardbox}->pack_start((my $frame = new Gtk2::Frame), 0, 1, 0);
+   #$self->{boardbox}->pack_start((my $frame = new Gtk2::Frame), 0, 1, 0);
+
+   # RIGHT PANE
+
+   $hpane->pack2 ((my $vbox = new Gtk2::VBox), 1, 1);
+   $hpane->set (position_set => 1);
+
+   $vbox->pack_start ((my $frame = new Gtk2::Frame), 0, 1, 0);
 
    {
       $frame->add (my $vbox = new Gtk2::VBox);
@@ -249,28 +251,17 @@ sub new {
       $self->{moveadj}->signal_connect (value_changed => sub { $self->update_board });
    }
 
-   $self->{boardbox}->add ($self->{board} = new Gtk2::GoBoard size => $self->{size});
+   $vbox->pack_start ((my $hbox = new Gtk2::HBox 1), 0, 1, 0);
 
-   # RIGHT PANE
-
-   $self->{hpane}->pack2(($self->{vpane} = new Gtk2::VPaned), 1, 1);
-   $self->{hpane}->set(position_set => 1);
-   gtk::state $self->{vpane}, "game::vpane", $self->{name}, position => 80;
-
-   $self->{vpane}->add(my $sw = new Gtk2::ScrolledWindow);
-   $sw->set_policy("automatic", "always");
-
-   $sw->add(($self->{userlist} = new userlist)->widget);
-
-   $self->{vpane}->add(my $vbox = new Gtk2::VBox);
-
-   $vbox->pack_start((my $hbox = new Gtk2::HBox 1), 0, 1, 0);
-   $hbox->add (($self->{userpanel}[COLOUR_WHITE] = new game::userpanel colour => COLOUR_WHITE)->widget);
-   $hbox->add (($self->{userpanel}[COLOUR_BLACK] = new game::userpanel colour => COLOUR_BLACK)->widget);
+   $hbox->add ($self->{userpanel}[$_] = new game::userpanel colour => $_)
+      for COLOUR_WHITE, COLOUR_BLACK;
    
-   $vbox->pack_start(($self->{chat} = new chat), 1, 1, 0);
+   $vbox->pack_start (($self->{chat} = new superchat), 1, 1, 0);
 
-   $self->{chat}->signal_connect(command => sub {
+   $self->{rules_inlay} = $self->{chat}->new_switchable_inlay ("Game Rules", sub { $self->draw_rules (@_) }, 1);
+   $self->{users_inlay} = $self->{chat}->new_switchable_inlay ("Users:", sub { $self->draw_users (@_) }, 0);
+
+   $self->{chat}->signal_connect (command => sub {
       my ($chat, $cmd, $arg) = @_;
       if ($cmd eq "rsave") {
          Storable::nstore { tree => $self->{tree}, curnode => $self->{curnode}, move => $self->{move} }, $arg;#d#
@@ -279,16 +270,15 @@ sub new {
       }
    });
 
-   $self->event_update_game;
    $self;
 }
 
 sub event_update_users {
    my ($self, $add, $update, $remove) = @_;
 
-   return unless $self->{userlist};
+#   $self->{userlist}->update ($add, $update, $remove);
 
-   $self->{userlist}->update ($add, $update, $remove);
+   $self->{users_inlay}->refresh;
 
    my %important;
    $important{$self->{user1}{name}}++;
@@ -311,15 +301,6 @@ sub join {
    return if $self->{joined};
 
    $self->SUPER::join;
-
-   $self->{window}->show_all;
-}
-
-sub part {
-   my ($self) = @_;
-
-   $self->SUPER::part;
-   $self->destroy;
 }
 
 sub update_board {
@@ -406,11 +387,15 @@ sub event_update_comments {
 
 sub event_join {
    my ($self) = @_;
-   $self->SUPER::event_join;
+
+   $self->SUPER::event_join (@_);
+   $self->event_update_game;
+   $self->show_all;
 }
 
 sub event_part {
    my ($self) = @_;
+
    $self->SUPER::event_part;
    $self->destroy;
 }
@@ -424,34 +409,35 @@ sub event_update_game {
    my ($self) = @_;
    $self->SUPER::event_update_game;
 
-   return unless $self->{window};
+   return unless $self->{joined};
 
    my $title = defined $self->{channel}
                   ? $self->owner->as_string . " " . $self->opponent_string
                   : "Game Window";
-   $self->{window}->set_title("KGS Game $title");
+   $self->set_title("KGS Game $title");
    $self->{title}->set_text ($title);
 
    $self->{user}[COLOUR_BLACK] = $self->{user1};
    $self->{user}[COLOUR_WHITE] = $self->{user2};
 
    # show board
-   
    if ($self->is_inprogress) {
-      $self->{left}->remove ($self->{challenge}->widget) if $self->{challenge} && $self->{boardbox}->parent;
-      $self->{left}->add ($self->{boardbox}) unless $self->{boardbox}->parent;
-   } else {
-      $self->{left}->remove ($self->{boardbox}) if $self->{boardbox}->parent;
-      $self->{left}->add ($self->{challenge}->widget) unless $self->{challenge}->widget->parent;
+      if (!$self->{boardbox}->parent) {
+         $self->{boardbox}->add ($self->{board} = new Gtk2::GoBoard size => $self->{size});
+         $self->{left}->add ($self->{boardbox});
+      }
+      if (my $ch = delete $self->{challenge}) {
+         (delete $_->{inlay})->clear for values %$ch;
+      }
    }
+
    $self->{left}->show_all;
 
    # view text
    
    eval { #d#
    my @ga;
-   $ga[0] = "\nType: " . (util::toxml $gametype{$self->type})
-            . " (" . (util::toxml $gameopt{$self->option}) . ")";
+   $ga[0] = "\nType: " . util::toxml $self->type_char;
    $ga[1] = "\nFlags:";
    $ga[1] .= " started"   if $self->is_inprogress;
    $ga[1] .= " adjourned" if $self->is_adjourned;
@@ -489,15 +475,12 @@ sub event_update_game {
    $self->{chat}->append_text ($text);
 }
 
-sub event_update_rules {
-   my ($self, $rules) = @_;
+sub draw_rules {
+   my ($self, $inlay) = @_;
 
-   $self->{userpanel}[$_]->configure ($self->{app}, $self->{user}[$_], $rules)
-      for COLOUR_BLACK, COLOUR_WHITE;
+   my $rules = $self->{rules};
 
-   sound::play 3, "gamestart";
-
-   my $text = "\n<header>Game Rules</header>";
+   my $text = "";
 
    $text .= "\nRuleset: " . $ruleset{$rules->{ruleset}};
 
@@ -516,7 +499,22 @@ sub event_update_rules {
       $text .= sprintf " + %s/%d CAN", util::format_time $rules->{interval}, $rules->{count};
    }
    
-   $self->{chat}->append_text ("<infoblock>$text</infoblock>");
+   $inlay->append_text ("<infoblock>$text</infoblock>");
+}
+
+sub event_update_rules {
+   my ($self, $rules) = @_;
+
+   $self->{rules} = $rules;
+
+   if ($self->{user}) {
+      $self->{userpanel}[$_]->configure ($self->{app}, $self->{user}[$_], $rules)
+         for COLOUR_BLACK, COLOUR_WHITE;
+   }
+
+   sound::play 3, "gamestart";
+
+   $self->{rules_inlay}->refresh;
 }
 
 sub inject_resign_game {
@@ -540,20 +538,65 @@ sub inject_final_result {
                               );
 }
 
+sub draw_challenge {
+   my ($self, $c) = @_;
+
+   my $inlay     = $c->{inlay};
+   my $challenge = $c->{challenge};
+   my $rules     = $challenge->{rules};
+
+   my $as_black = $challenge->{user1}{name} eq $self->{conn}{name};
+   my $opponent = $as_black ? $challenge->{user2} : $challenge->{user1};
+
+   $inlay->append_text ("\n<challenge>Challenge to <user>" . $opponent->as_string . "</user></challenge>");
+   $inlay->append_text ("\nHandicap: $rules->{handicap}");
+
+#bless( (
+#                gametype => 3,
+#                user1 => bless( {
+#                                  flags => 2633,
+#                                  name => 'dorkusx'
+#                                }, 'KGS::User' ),
+#                rules => bless( {
+#                                  count => 5,
+#                                  time => 900,
+#                                  timesys => 2,
+#                                  interval => 30,
+#                                  komi => '6.5',
+#                                  size => 19,
+#                                  ruleset => 0,
+#                                  handicap => 0
+#                                }, 'KGS::Rules' ),
+#                user2 => bless( {
+#                                  flags => 436220808,
+#                                  name => 'Nerdamus'
+#                                }, 'KGS::User' )
+#              ), 'KGS::Challenge' )
+}
+
+sub draw_users {
+   my ($self, $inlay) = @_;
+
+   for (sort keys %{$self->{users}}) {
+      $inlay->append_text ("  <user>" . $self->{users}{$_}->as_string . "</user>");
+   }
+}
+
 sub event_challenge {
    my ($self, $challenge) = @_;
 
-   use KGS::Listener::Debug;
-   $self->{chat}->append_text ("\n".KGS::Listener::Debug::dumpval($challenge));
-}
+   my $as_black = $challenge->{user1}{name} eq $self->{conn}{name};
+   my $opponent = $as_black ? $challenge->{user2} : $challenge->{user1};
 
-sub destroy {
-   my ($self) = @_;
+   my $c = $self->{challenge}{$opponent->{name}} ||= {};
 
-   delete $self->{app}{gamelist}{game}{$self->{channel}};
-   $self->{userpanel}[$_] && (delete $self->{userpanel}[$_])->destroy
-      for COLOUR_BLACK, COLOUR_WHITE;
-   $self->SUPER::destroy;
+   $c->{inlay} ||= $self->{chat}->new_inlay;
+   $c->{challenge} = $challenge;
+
+   $self->draw_challenge ($c);
+
+#   require KGS::Listener::Debug;
+#   $self->{chat}->append_text ("\n".KGS::Listener::Debug::dumpval($challenge));
 }
 
 1;

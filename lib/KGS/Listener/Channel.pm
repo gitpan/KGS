@@ -5,9 +5,8 @@ use base KGS::Listener;
 sub add_users {
    my ($self, $users) = @_;
 
-   my @added;
-   my @updated;
-   my $user;
+   my (@added, @updated, $user);
+
    for (@$users) {
       if ($user = $self->{users}{$_->{name}}) {
          push @updated, $user;
@@ -24,13 +23,16 @@ sub add_users {
 sub del_users {
    my ($self, $users) = @_;
 
-   my @deleted;
+   return unless $self->{joined};
+
+   my (@deleted, $part);
 
    for (@$users) {
-      $self->event_part if $_->{name} eq $self->{conn}{name};
+      $part ||= $_->{name} eq $self->{conn}{name};
       push @deleted, delete $self->{users}{$_->{name}};
    }
-   $self->event_update_users ([], [], \@deleted) if $self->{joined};
+   $self->event_update_users ([], [], \@deleted);
+   $self->event_part if $part;
 }
 
 sub join {
@@ -63,7 +65,7 @@ sub event_join {
 
 sub event_part {
    my ($self) = @_;
-   $self->{joined} = 0;
+   delete $self->{joined};
    $self->event_update_users ([], [], [values %{(delete $self->{users}) || {}}]);
 }
 

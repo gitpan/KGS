@@ -40,6 +40,11 @@ my $tagtable = new Gtk2::TextTagTable;
 sub INIT_INSTANCE {
    my $self = shift;
 
+   $self->signal_connect (destroy => sub {
+      remove Glib::Source delete $self->{idle} if $self->{idle};
+      %{$_[0]} = ();
+   });
+
    $self->{buffer} = new Gtk2::TextBuffer $tagtable;
 
    $self->{widget} = new Gtk2::ScrolledWindow;
@@ -52,7 +57,6 @@ sub INIT_INSTANCE {
 
    $self->{view}->set_editable (0);
 
-   #use PApp::Util; warn PApp::Util::dumpval ($self->{view}->get_events);
    $self->{view}->signal_connect (motion_notify_event => sub {
       my ($widget, $event) = @_;
 
@@ -97,8 +101,6 @@ sub INIT_INSTANCE {
 
 
    $self->set_end;
-
-   $self;
 }
 
 sub do_command {

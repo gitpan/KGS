@@ -24,6 +24,8 @@ our %enc_server; # encode messages received from server
 
 my $data; # stores currently processed decoding/encoding packet
 
+sub _set_data($) { $data = shift } # for debugging or special apps only
+
 # primitive enc/decoders
 
 #############################################################################
@@ -575,9 +577,12 @@ sub enc_game_record {
 # this was the most horrible thing to decode. still not everything is decoded correctly(?)
 sub dec_TREE {
    my @r;
+   my $old_data = $data;#d#
    while (length $data) {
       my $type = dec_U8;
       my $add = $type < 128;
+
+      my $ofs = (length $old_data) - (length $data);#d#
 
       $type &= 127;
 
@@ -596,12 +601,16 @@ sub dec_TREE {
 
       } elsif ($type == 29) {
          push @r, [type_29 => dec_ZSTRING];
-         warn "TYPE 29 $r[-1][1]\007 PLEASE REPORT";#d#
+         warn "UNKNOWN TREE TYPE 29 $r[-1][1]\007 PLEASE REPORT";#d#
          die;
 
       } elsif ($type == 28) {
          # move number, only in variations it seems. oh my.
          push @r, [movenum => dec_ZSTRING];
+
+      } elsif ($type == 26) {
+         push @r, [type_26 => dec_U8]; # sets a flag (?)
+         warn "unknown tree node 26, PLEASE REPORT AND INCLUDE THE GAME\n";
 
       } elsif ($type == 25) {
          push @r, [result => dec_result];
@@ -613,22 +622,27 @@ sub dec_TREE {
          push @r, [mark => $add, dec_U8() ? MARK_SMALL_W : MARK_SMALL_B, dec_U8, dec_U8];
 
       } elsif ($type == 21) {
-         push @r, [mark => $add, MARK_CIRCLE, dec_U8, dec_U8];
-
-      } elsif ($type == 20) {
          push @r, [mark => $add, MARK_SQUARE, dec_U8, dec_U8];
 
-      } elsif ($type == 19) {
+      } elsif ($type == 20) {
          push @r, [mark => $add, MARK_TRIANGLE, dec_U8, dec_U8];
 
-      } elsif ($type == 18) {
+      } elsif ($type == 19) {
          push @r, [mark => $add, MARK_LABEL, dec_U8, dec_U8, dec_ZSTRING];
+         #push @r, [unknown_18 => dec_U8, dec_U32, dec_U32, dec_U8, dec_U32, dec_U32, dec_U32];
+         #push @r, [set_timer => (dec_U8, dec_U32, dec_time)[0,2,1]];
 
-      } elsif ($type == 17) {
+      } elsif ($type == 18) {
          push @r, [set_timer => (dec_U8, dec_U32, dec_time)[0,2,1]];
 
-      } elsif ($type == 16) {
-         push @r, [set_stone => dec_U8, dec_U8, dec_U8];
+      } elsif ($type == 17) {
+         push @r, [set_stone => dec_U8, dec_U8, dec_U8];#d#?
+
+#      } elsif ($type == 16) {
+#         push @r, [set_stone => dec_U8, dec_U8, dec_U8];#o#
+
+      } elsif ($type == 15) {
+         push @r, [mark => $add, MARK_CIRCLE, dec_U8, dec_U8];#d#?
 
       } elsif ($type == 14) {
          push @r, [move => dec_U8, dec_U8, dec_U8];
@@ -640,7 +654,7 @@ sub dec_TREE {
          push @r, [({
                4 => "date",
                5 => "unknown_comment5",
-               6 => "unknown_comment6",
+               6 => "game_id", #?#
                7 => "unknown_comment7",
                8 => "unknown_comment8",
                9 => "copyright", #?
@@ -656,6 +670,9 @@ sub dec_TREE {
       } elsif ($type == 2) {
          push @r, [player => dec_U8, dec_ZSTRING];
 
+      } elsif ($type == 1) {
+         push @r, [sgf_name => dec_ZSTRING];
+
       } elsif ($type == 0) {
          # as usual, wms finds yet another way to duplicate code... oh well, what a mess.
          # (no wonder he is so keen on keeping it a secret...)
@@ -665,12 +682,19 @@ sub dec_TREE {
       # OLD
 
       } else {
+         require KGS::Listener::Debug; # hack
          print STDERR KGS::Listener::Debug::dumpval(\@r);
-         open XTYPE, "|xtype"; print XTYPE $data; close XTYPE;
-         die "unknown tree type $type, PLEASE REPORT and include the game you wanted to watch. thx.";
+         printf "offset: 0x%04x\n", $ofs;
+         open XTYPE, "|xtype"; print XTYPE $old_data; close XTYPE;
+         warn "unknown tree type $type, PLEASE REPORT and include the game you wanted to watch. thx.";
 
       }
+
+      push @{$r[-1]}, offset => sprintf "0x%x", $ofs;#d#
+      
    }
+#         print STDERR KGS::Listener::Debug::dumpval(\@r);#d#
+#            return [];#d#
    \@r;
 }
 
@@ -716,10 +740,10 @@ sub enc_TREE {
                   &MARK_GRAYED   => 23,
                   &MARK_SMALL_B  => 22,
                   &MARK_SMALL_W  => 22,
-                  &MARK_CIRCLE   => 21,
-                  &MARK_SQUARE   => 20,
-                  &MARK_TRIANGLE => 19,
-                  &MARK_LABEL    => 18,
+                  &MARK_SQUARE   => 21,
+                  &MARK_TRIANGLE => 20,
+                  &MARK_LABEL    => 19,
+                  &MARK_CIRCLE   => 15,
                 })->{$arg[1]};
 
          enc_U8 $op + ($arg[0] ? 0 : 128);
@@ -728,6 +752,14 @@ sub enc_TREE {
          enc_U8 $arg[3];
 
          enc_ZSTRING $arg[4] if $op == 18;
+
+      # unknown types
+      } elsif ($type eq "type_29") {
+         enc_U8 29;
+         enc_ZSTRING $arg[0];
+      } elsif ($type eq "type_26") {
+         enc_U8 26;
+         enc_U8 $arg[0];
 
       } else {
          warn "unable to encode tree node type $type\n";
@@ -747,14 +779,14 @@ $dec_client{0x0000} = sub {
    $r->{type} = "login";
    
    $r->{ver_major} = dec_U32 q|2|;
-   $r->{ver_minor} = dec_U32 q|5|;
-   $r->{ver_micro} = dec_U32 q|2|;
+   $r->{ver_minor} = dec_U32 q|6|;
+   $r->{ver_micro} = dec_U32 q|0|;
    $r->{name} = dec_username q||;
    $r->{password} = dec_password q|0|;
    $r->{guest} = dec_flag q|1|;
    $r->{_unknown3} = dec_U16 q|0|;
    $r->{locale} = dec_locale q|"en_US"|;
-   $r->{clientver} = dec_DATA q|"1.4.1_01:Swing app:Sun Microsystems Inc."|;
+   $r->{clientver} = dec_DATA q|"1.4.2_03:Swing app:Sun Microsystems Inc."|;
    $r;
 };
 $enc_client{login} = sub {
@@ -762,14 +794,14 @@ $enc_client{login} = sub {
    enc_U16 0x0000;
    
    enc_U32 defined $_[0]{ver_major} ? $_[0]{ver_major} : (q|2|);
-   enc_U32 defined $_[0]{ver_minor} ? $_[0]{ver_minor} : (q|5|);
-   enc_U32 defined $_[0]{ver_micro} ? $_[0]{ver_micro} : (q|2|);
+   enc_U32 defined $_[0]{ver_minor} ? $_[0]{ver_minor} : (q|6|);
+   enc_U32 defined $_[0]{ver_micro} ? $_[0]{ver_micro} : (q|0|);
    enc_username defined $_[0]{name} ? $_[0]{name} : (q||);
    enc_password defined $_[0]{password} ? $_[0]{password} : (q|0|);
    enc_flag defined $_[0]{guest} ? $_[0]{guest} : (q|1|);
    enc_U16 defined $_[0]{_unknown3} ? $_[0]{_unknown3} : (q|0|);
    enc_locale defined $_[0]{locale} ? $_[0]{locale} : (q|"en_US"|);
-   enc_DATA defined $_[0]{clientver} ? $_[0]{clientver} : (q|"1.4.1_01:Swing app:Sun Microsystems Inc."|);
+   enc_DATA defined $_[0]{clientver} ? $_[0]{clientver} : (q|"1.4.2_03:Swing app:Sun Microsystems Inc."|);
    $data;
 };
 
@@ -1178,7 +1210,8 @@ $dec_client{0x4305} = sub {
    
    $r->{channel} = dec_U16 q||;
    $r->{id} = dec_U16 q||;
-   $r->{gametype} = dec_U32 q||;
+   $r->{type} = dec_U8 q||;
+   $r->{flags} = dec_U8 q||;
    $r->{rules} = dec_rules q||;
    $r->{notes} = dec_STRING q||;
    $r;
@@ -1189,7 +1222,8 @@ $enc_client{new_game} = sub {
    
    enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
    enc_U16 defined $_[0]{id} ? $_[0]{id} : (q||);
-   enc_U32 defined $_[0]{gametype} ? $_[0]{gametype} : (q||);
+   enc_U8 defined $_[0]{type} ? $_[0]{type} : (q||);
+   enc_U8 defined $_[0]{flags} ? $_[0]{flags} : (q||);
    enc_rules defined $_[0]{rules} ? $_[0]{rules} : (q||);
    enc_STRING defined $_[0]{notes} ? $_[0]{notes} : (q||);
    $data;
@@ -2947,6 +2981,31 @@ $enc_server{set_quiet} = sub {
    
    enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
    enc_U8 defined $_[0]{quiet} ? $_[0]{quiet} : (q||);
+   $data;
+};
+
+# set_endtime
+$dec_server{0x4437} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "set_endtime";
+   
+   $r->{channel} = dec_U16 q||;
+   $r->{btime} = dec_time q||;
+   $r->{bcount} = dec_U16 q||;
+   $r->{wtime} = dec_time q||;
+   $r->{wcount} = dec_U16 q||;
+   $r;
+};
+$enc_server{set_endtime} = sub {
+   $data = "";
+   enc_U16 0x4437;
+   
+   enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
+   enc_time defined $_[0]{btime} ? $_[0]{btime} : (q||);
+   enc_U16 defined $_[0]{bcount} ? $_[0]{bcount} : (q||);
+   enc_time defined $_[0]{wtime} ? $_[0]{wtime} : (q||);
+   enc_U16 defined $_[0]{wcount} ? $_[0]{wcount} : (q||);
    $data;
 };
 

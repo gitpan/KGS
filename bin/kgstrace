@@ -28,7 +28,7 @@ while (my $l = $l->accept) {
    if (fork == 0) {
       printf TRACE "$$ + %d\n", int time;
 
-      my $r = new IO::Socket::INET PeerHost => "kgs.kiseido.com:2379";
+      my $r = new IO::Socket::INET PeerHost => KGS::Protocol::KGSHOST, PeerPort => KGS::Protocol::KGSPORT;
       $prot->handshake ($r);
       {
          sysread $l, my $buf, 1;
@@ -69,6 +69,8 @@ while (my $l = $l->accept) {
 
                      $prot->{generator}->set_server_seed ($msg->{name}) if $msg->{type} eq "login";
 
+                     delete $msg->{data} if $msg->{type} eq "userpic";
+
                      print "\npacket type $msg->{type} received from CLIENT:\n";
                      open XTYPE, "|xtype"; printf XTYPE "%16d%s", (length $pkt), $pkt; close XTYPE;
                      print KGS::Listener::Debug::dumpval $msg;
@@ -106,6 +108,8 @@ use base KGS::Listener;
 
 sub inject {
    my ($self, $msg) = @_;
+
+   delete $msg->{data} if $msg->{type} eq "userpic";
 
    print "received packet type $msg->{type} from SERVER\n";
    print KGS::Listener::Debug::dumpval $msg;

@@ -9,15 +9,19 @@ use Scalar::Util;
 
 use KGS::Messages;
 
-my $KGSHOST = "kgs.kiseido.com";
+my $KGSHOST = "goserver.igoweb.org";
 my $KGSPORT = 2379;
 my $SGFHOST = "216.93.172.124";
 
 our $NOW; # the time the last packet was received
 
-our $VERSION = "0.2";
+our $VERSION = "0.3";
 
 sub MSG_CHANNEL() { 0x4000 }
+
+sub KGSHOST() { $ENV{KGSHOST} || $KGSHOST }
+sub KGSPORT() { $ENV{KGSPORT} || $KGSPORT }
+sub SGFHOST() { $ENV{SGFHOST} || $SGFHOST }
 
 =item new arg => value,...
 
@@ -224,29 +228,26 @@ sub alloc_channel {
 
 package KGS::User;
 
-sub is_guest	{ $_[0]{flags} & 0x00001 }
-sub is_admin	{ $_[0]{flags} & 0x00002 }
-#                                0x00004   # never seen
-sub is_active	{ $_[0]{flags} & 0x00008 } # logged in(?)
-sub is_gone	{ $_[0]{flags} & 0x00010 }
-sub is_idle	{ $_[0]{flags} & 0x00020 }
-#                                0x00040 # no idea, seen on many users
-sub is_playing	{ $_[0]{flags} & 0x00080 }
-sub is_reliable	{ $_[0]{flags} & 0x00100 } # reliable ranking?
-sub is_ranked	{ $_[0]{flags} & 0x00200 }
+sub is_admin	 { $_[0]{flags} & 0x00004 }
+sub is_active	 { $_[0]{flags} & 0x00008 } # logged in(?)
+sub is_gone	 { $_[0]{flags} & 0x00010 }
+sub is_idle	 { $_[0]{flags} & 0x00020 }
+sub has_url	 { $_[0]{flags} & 0x00040 } # wild guess
+sub is_playing	 { $_[0]{flags} & 0x00080 }
+sub is_reliable	 { $_[0]{flags} & 0x00100 } # reliable ranking?
+sub is_ranked	 { $_[0]{flags} & 0x00200 }
 #                                0x00400 # no idea
-sub is_ranked2	{ $_[0]{flags} & 0x00800 } # very reliably ranked? *g*
-sub has_pic	{ $_[0]{flags} & 0x01000 }
-sub email_priv	{ $_[0]{flags} & 0x02000 }
+sub is_ranked2	 { $_[0]{flags} & 0x00800 } # very reliably ranked? *g*
+sub has_pic	 { $_[0]{flags} & 0x01000 }
+sub email_priv	 { $_[0]{flags} & 0x02000 }
 
-sub is_bot_1	{ $_[0]{flags} & 0x10000 } # set on bots
-sub is_bot_2	{ $_[0]{flags} & 0x20000 } # set on bots
+sub is_guest	 { $_[0]{flags} & 0x20000 }
 
-sub usertype    { ($_[0]{flags} >> 16) & 3 }
+sub usertype     { $_[0]{flags} & 3 }
 # 0 == normal
-# 1 == robot (gtp-client)
+# 1 == ranked robot (gtp-client)
 # 2 == teacher
-# 3 == ranked robot
+# 3 == assistant
 
 sub is_valid    { length $_[0]{name} }
 
@@ -273,20 +274,25 @@ sub rank_string {
 sub flags_string {
    my $r;
 
-   $r .= "G" if &is_guest;
-   $r .= "!" if &is_admin;
    $r .= "+" if &is_active;
-   $r .= "-" if &is_gone;
-   $r .= "i" if &is_idle;
-   $r .= "P" if &is_playing;
    $r .= ":" if &is_ranked2;
 
-   $r .= " (GTP)" if &usertype == 1;
-   $r .= " (TEACHER)" if &usertype == 2;
-   $r .= " (ROBOT)" if &usertype == 3;
+   $r .= " (admin)" if &is_admin;
 
-   $r .= sprintf "%04x", $_[0]{flags} & 0xfcc400
-      if $_[0]{flags} & 0xfcc400;
+   $r .= " (ranked bot)" if &usertype == 1;
+   $r .= " (teacher)" if &usertype == 2;
+   $r .= " (ass)" if &usertype == 3;
+
+   $r .= " (guest)" if &is_guest;
+   $r .= " (gone)" if &is_gone;
+   $r .= " (idle)" if &is_idle;
+   $r .= " (playing)" if &is_playing;
+
+   $r .= " (has pic)" if &has_pic;
+   $r .= " (has url)" if &has_url;
+
+   $r .= sprintf "%04x", $_[0]{flags} & 0xfdc000
+       if $_[0]{flags} & 0xfdc000;
 
    $r;
 }
@@ -305,6 +311,8 @@ sub is_adjourned  { $_[0]{flags} & 0x2 }
 # there is more going on, one bit 0x4 and above(?)
 
 sub is_inprogress { $_[0]{handicap} >= 0 } # maybe rename to "complete"? "started"? "has_board"? ;)
+
+sub is_private    { $_[0]{type} & 128 }
 
 sub is_active     {
    &is_inprogress
@@ -330,16 +338,12 @@ sub moves {
 }
 
 sub type {
-   ($_[0]{type} & 15) % 5;
-}
-
-sub option {
-   int +($_[0]{type} & 15) / 5;
+   $_[0]{type} & 15;
 }
 
 sub type_char {
    (uc substr ($gametype{&type}, 0, 1))
-   . (uc substr ($gameopt{&option}, 0, 1))
+   . (&is_private ? "P" : "");
 }
 
 sub owner {
@@ -462,11 +466,7 @@ sub _gametype {
 }
 
 sub gametype {
-   &_gametype % 5;
-}
-
-sub gameopt {
-   int &_gametype / 5;
+   &_gametype & 15;
 }
 
 sub size {
