@@ -3,7 +3,7 @@
 <title>KGS Protocol Description</title>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <!--
-    Copyright (C) 2003      Marc Lehmannn &lt;pcg@goof.com&gt;
+    Copyright (C) 2003,2004 Marc Lehmannn &lt;pcg@goof.com&gt;
  
     You can redistribute and/or modify this document under the terms of
     the GNU General Public License as published by the Free Software
@@ -22,29 +22,17 @@
 </head>
 <body>
 
-<h1>$Revision: 1.69 $</h1>
+<h1>$Revision: 1.74 $</h1>
 
 <h1>KGS Protocol Description</h1>
 
    <p>This XML document describes the KGS protocol. It is also used
    to automatically generate the perl parser for all the messages and
    structures in the protocol. Adapting it to other languages should be
-   almost trivial.</p>
-
-   <p>
-      <b>Please note that wms has told me that he will change the
-   protocol in response to my efforts. No problems with changing the
-   protocol for good, but he does this just to make it more difficult
-   to reverse-engineer it, since his changes are neither required, nor
-   useful (they just make the protocol less robust, without adding added
-   value). He doesn't even care that this locks out some users who cannot
-   upgrade (cgoban2 isn't available for their platform anymore). It hurts
-   to see such a waste of time and efforts that could have been used to
-   fix bugs or improve the client...</b>
-    </p>
+   almost trivial (and partly has been done).</p>
 
    <p>If you feel you need to update the visual appearance of this
-   document, feel free to look <tt>doc/doc2html.xsl</tt> and improve
+   document, feel free to look at <tt>doc/doc2html.xsl</tt> and improve
    it.</p>
 
    <p>The current version of this document can always be found at 
@@ -67,6 +55,11 @@
    I know java is supposed to do UTF-16, but no implementation seems to
    care...</p>
 
+   <p>To get a feel for the protocol, get the <tt>KGS</tt> perl module
+   from CPAN, install it an run <tt>kgstrace</tt>, then conenct to
+   <tt>127.0.0.1</tt> with your client. <tt>kgstrace</tt> will dump all
+   messages from and to the server.</p>
+
    <p>For the rest, go figure or bug me, <a href="mailto:pcg@goof.com">Marc Lehmann &lt;pcg@goof.com&gt;</a>
     </p>
 
@@ -76,7 +69,7 @@
    the major version number of the protocol the client expects to
    receive. Version 3 and 4 are mostly the same, except that Version 4
    clients expect server messages to be compressed, version 3 clients
-   not.</p>
+   do not. (version 3 probably is no longer supported).</p>
 
    <p>The server sends back his protocol number, which is always 3 in
    the current protocol. Most of the protocol variation is determined by
@@ -101,23 +94,18 @@
         <th width="10%">GUARD</th>
       </tr>
       <tr>
-        <td>_unknown</td>
-        <td>U16</td>
-        <td> </td>
-        <td>
-      
-            
-       </td>
-        <td>
-          <b></b> 
-            
-       </td>
-      </tr>
-      <tr>
         <td>length</td>
         <td>U16</td>
         <td> </td>
         <td>
+
+      <p>The length is the length of the full message including the header.</p>
+
+      <p>Beginning with version 2.5.x, a number is xored into the low
+      byte of the length in <em>sent</em> packages only, as given by the
+      following recurrence: <code>rand[0] = 0; rand[i+1] = msg[i].length
+      + (rand[i] * 0x04c2af9b + 0xfffffffb); xorbyte = rand &gt;&gt;
+      24</code>, all in 32 bit unsigned iso-c arithmetic.</p>
 
       
             
@@ -132,7 +120,22 @@
         <td>U16</td>
         <td> </td>
         <td>
+      <p>If the type is &gt;= 0x4000 this is a message for a specific channel. The channel
+      number is always the next U16.</p>
+
+      <p>Beginning with version 2.5.x, a number is <em>added</em> on <em>received</em>
+      messages only. The algorithm is as follows:
       
+      <pre>
+         msglen &lt; 44: type = typefield
+         msglen &gt; 44: type = (typefield + rand[i]) % 0x10000
+            rand[0] = 0
+            rand[i+1] = username[type % length username] + rand[i] * (type - 0x6cdd)
+               where username is the user name of the logged-in user. coooool.
+      </pre>
+      </p>
+
+   
             
        </td>
         <td>
@@ -342,7 +345,8 @@
         <td></td>
         <td>128 </td>
         <td>
-      
+      <p>PRIVATE is ored onto DEMONSTRATION or TEACHING</p>
+   
             
        </td>
         <td>
@@ -420,6 +424,7 @@
         <td></td>
         <td>0x01 </td>
         <td>
+      <p>Admins only(?)</p>
       
             
        </td>
@@ -433,6 +438,7 @@
         <td></td>
         <td>0x04 </td>
         <td>
+      <p>Seems to be set on the english room. Or maybe not.</p>
       
             
        </td>
@@ -446,7 +452,8 @@
         <td></td>
         <td>0x10 </td>
         <td>
-      
+      <p>This room is private.</p>
+   
             
        </td>
         <td>
@@ -768,7 +775,8 @@
         <td></td>
         <td>2 </td>
         <td>
-      
+      <p>Sometimes used to mark absence of marks, or no player or etc...</p>
+   
             
        </td>
         <td>
@@ -1493,6 +1501,7 @@
         <td>CLIENTID16</td>
         <td> </td>
         <td>
+      <p>A boolean, probably. Always true for me.</p>
       
             
        </td>
@@ -2021,6 +2030,7 @@
         <td>U16</td>
         <td> </td>
         <td>
+      <p>The room where to start the new game</p>
       
             
        </td>
@@ -2047,6 +2057,10 @@
         <td>U8</td>
         <td> </td>
         <td>
+      <p>
+         GAMETYPE_UPLOAD probably not allowed. GAMETYPE_PRIVATE
+         only allowd together with GAMETYPE_TEACHING, GAMETYPE_DEMONSTRATION.
+      </p>
       
             
        </td>
@@ -2060,6 +2074,9 @@
         <td>U8</td>
         <td> </td>
         <td>
+      <p>
+         0x2 == global open game list
+      </p>
       
             
        </td>
@@ -2073,6 +2090,10 @@
         <td>rules</td>
         <td> </td>
         <td>
+      <p>When cloning a game, the rules are set up like this:
+         count =&gt; 65535, ruleset =&gt; 0, time =&gt; 4294967295, timesys =&gt; 0, interval =&gt; 4294967295.
+         Cloning itself seems to be implemented solely in the client (somewhat sane, for a change).
+      </p>
       
             
        </td>
@@ -2301,6 +2322,7 @@
         <td>CLIENTID8</td>
         <td> </td>
         <td>
+      <p>Possibly an id. No idea. Better echo this from the challenge request.</p>
       
             
        </td>
@@ -2553,7 +2575,8 @@
         <td>flag</td>
         <td> </td>
         <td>
-      
+      <p>Possibly true means mark dead and false unmark, but that's just a wild guess.</p>
+   
             
        </td>
         <td>
@@ -2638,7 +2661,8 @@
         <td>U32</td>
         <td> </td>
         <td>
-      
+      <p>An id field (start at one please) to make sure that the client responds to the correct done click.</p>
+   
             
        </td>
         <td>
@@ -3098,6 +3122,7 @@
         <td>CLIENTID8</td>
         <td> </td>
         <td>
+      <p>Possibly an id. No idea. Better echo this from the challenge request.</p>
       
             
        </td>
@@ -3354,6 +3379,7 @@
         <td>U8</td>
         <td> </td>
         <td>
+      <p>The ruleset member is a pure guess, please verify. it could also be after size for example.</p>
       
             
        </td>
@@ -3959,6 +3985,7 @@
         <td>U8</td>
         <td> </td>
         <td>
+      <p>0:3 == handicap, 4:7 == gametype:0:4</p>
       
             
        </td>
@@ -4001,6 +4028,14 @@
         <td> </td>
         <td>
 
+      <p>
+            <p>Owner (or empty)</p>
+
+      <p>The bits 16-24 of black.flags and white.flags give the high and
+      low bits of a revision number in case there are multiple similar
+      games.</p>
+          </p>
+
       
             
        </td>
@@ -4014,6 +4049,7 @@
         <td>U16</td>
         <td> </td>
         <td>
+      <p>0:11 == komi / 2, 12:14 == high 3 bits of gametype, 15: == sign bit</p>
       
             
        </td>
@@ -4041,7 +4077,9 @@
         <td> </td>
         <td>
 
-      
+      <p>0:5 == boardsize; 6: == no idea; 7: == inplay?</p>
+
+   
             
        </td>
         <td>
@@ -4402,7 +4440,8 @@
         <td> </td>
         <td>
       When the user logged in for the last time.
-      
+      <!-- maybe more? -->
+   
             
        </td>
         <td>
@@ -5758,7 +5797,9 @@
         <td>game_record</td>
         <td> </td>
         <td>
+      <p>Game result record?</p>
       
+   
             
        </td>
         <td>
@@ -5770,9 +5811,10 @@
 
    <h4>
       <a name="S030c"></a>ORIGIN: SERVER;
-      MESSAGE: unknown_030c</h4>
+      MESSAGE: login_done</h4>
    NUMERIC TYPE (hex): 030c<p>
-      <p>Not the slightest... No payload, either.</p>
+      <p>Is sent after the initial messages, probably
+      to signify the end of the login process.</p>
     </p>
     <table border="1" width="100%">
       <tr>
@@ -5922,7 +5964,8 @@
         <td>CLIENTID16</td>
         <td> </td>
         <td>
-      
+      <p>The cid of the new_game etc. request.</p>
+   
             
        </td>
         <td>
@@ -6224,6 +6267,9 @@
         <td>U16</td>
         <td> </td>
         <td>
+      <p>
+         The room this game is associated with.
+      </p>
       
             
        </td>
@@ -6237,7 +6283,8 @@
         <td>game</td>
         <td> </td>
         <td>
-      
+      <p>The game. The "moves" member contains a small number. Probably garbage.</p>
+   
             
        </td>
         <td>
@@ -6588,6 +6635,7 @@
         <td>CLIENTID8</td>
         <td> </td>
         <td>
+      <p>Possibly an id. No idea. Better echo this from the challenge request.</p>
       
             
        </td>
@@ -6614,7 +6662,8 @@
         <td>STRING</td>
         <td> </td>
         <td>
-      
+      <p>This field is optional</p>
+   
             
        </td>
         <td>
@@ -6918,6 +6967,8 @@
         <td>U32</td>
         <td> </td>
         <td>
+      <p>An id field to make sure that the client responds to the correct done click.</p>
+      <p>The high bit has the "please press done again" warning function, i.e. if set, opponent has changed board.</p>
       
             
        </td>
@@ -7010,9 +7061,9 @@
 
    <h4>
       <a name="S440c"></a>ORIGIN: SERVER;
-      MESSAGE: out_of_time</h4>
+      MESSAGE: time_win</h4>
    NUMERIC TYPE (hex): 440c<p>
-      <p>Sent when the user is out of time and moves, or when the opponent
+      <p>Sent when the opponent is out of time and moves, or when the other
       requests <a href="#S0008">userinfo(0008)</a>.</p>
     </p>
     <table border="1" width="100%">
@@ -7041,6 +7092,7 @@
         <td>U8</td>
         <td> </td>
         <td>
+      <p>Colour who won.</p>
    
             
        </td>
@@ -7496,6 +7548,7 @@
         <td>CLIENTID8</td>
         <td> </td>
         <td>
+      <p>Possibly an id. No idea. Better echo this from the challenge request.</p>
       
             
        </td>
@@ -7693,6 +7746,7 @@
         <td>U16</td>
         <td> </td>
         <td>
+      <p>The newly created game.</p>
       
             
        </td>
@@ -7706,7 +7760,8 @@
         <td>CLIENTID16</td>
         <td> </td>
         <td>
-      
+      <p>The ID sent to the server in new_game.</p>
+   
             
        </td>
         <td>
@@ -7891,6 +7946,7 @@
         <td>U16</td>
         <td> </td>
         <td>
+      <p>The game id to remove.</p>
       
             
        </td>
@@ -7904,7 +7960,8 @@
         <td>U16</td>
         <td> </td>
         <td>
-      
+      <p>Probably the same. I suggest to use this id for no good reason.</p>
+   
             
        </td>
         <td>

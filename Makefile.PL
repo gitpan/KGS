@@ -31,10 +31,11 @@ WriteMakefile(
 	           },
     PREREQ_PM	=> {
                     Convert::Scalar	=> 0,
-    		    Gtk2		=> 0.90,
+    		    Gtk2		=> 1.043,
                     Audio::Data		=> 0,
                     Audio::Play		=> 0,
                     Time::HiRes		=> 0,
+                    Compress::Zlib	=> 0,
 		   },
     DIR		=> [],
     NAME	=> 'KGS',
@@ -92,7 +93,6 @@ WriteMakefile(
 
        'kgsueme/app.pl'			=> '$(INST_LIBDIR)/KGS/kgsueme/app.pl',
        'kgsueme/chat.pl'		=> '$(INST_LIBDIR)/KGS/kgsueme/chat.pl',
-       'kgsueme/superchat.pl'		=> '$(INST_LIBDIR)/KGS/kgsueme/superchat.pl',
        'kgsueme/game.pl'		=> '$(INST_LIBDIR)/KGS/kgsueme/game.pl',
        'kgsueme/gamelist.pl'		=> '$(INST_LIBDIR)/KGS/kgsueme/gamelist.pl',
        'kgsueme/gtk.pl'			=> '$(INST_LIBDIR)/KGS/kgsueme/gtk.pl',

@@ -22,19 +22,20 @@ sub status {
 
 sub new {
    my ($self, %arg) = @_;
+
    $self = $self->Glib::Object::new;
    $self->{$_} = delete $arg{$_} for keys %arg;
+   gtk::state $self, "main::window", undef, window_size => [700, 580];
+
+   $self->set (allow_shrink => 1);
 
    Scalar::Util::weaken ($::self = $self); # singleton...
 
-   $self->{conn} = new KGS::Protocol::Client;
+   $self->{protocol} = new KGS::Protocol::Client;
 
-   $self->listen ($self->{conn}, qw(login userpic idle_warn msg_chat chal_defaults));
-
-   $self->{roomlist} = new roomlist conn => $self->{conn}, app => $self;
+   $self->{roomlist} = new roomlist app => $self;
 
    $self->set_title ('kgsueme');
-   gtk::state $self, "main::window", undef, window_size => [400, 500];
    $self->signal_connect (destroy => sub { %{$_[0]} = () });
    $self->signal_connect (delete_event => sub { main_quit Gtk2; 1 });
 
@@ -50,7 +51,8 @@ sub new {
 
    $button->("Login", sub { $self->login; });
    $button->("Roomlist", sub { $self->{roomlist}->show; });
-   $button->("Save Config & Layout", \&util::save_config);
+   $button->("Save Layout", \&util::save_config);
+   $button->("Logout", sub { $self->{conn}->send ("quit") if $self->{conn} });
    $button->("Quit", sub { main_quit Gtk2 });
 
    $vbox->pack_start ((my $hbox = new Gtk2::HBox), 0, 1, 0);
@@ -67,11 +69,11 @@ sub new {
 
    $vbox->pack_start ((my $vpane = new Gtk2::VPaned), 1, 1, 0);
    $vpane->set (position_set => 1);
-   gtk::state $vpane, "main::vpane", undef, position => 250;
+   gtk::state $vpane, "main::vpane", undef, position => 300;
 
    $vbox->pack_start(($self->{status} = new Gtk2::Statusbar), 0, 1, 0);
 
-   $self->{gamelist} = new gamelist conn => $self->{conn}, app => $self;
+   $self->{gamelist} = new gamelist app => $self;
    $vpane->pack1 ($self->{gamelist}, 1, 1);
 
    $self->{rooms} = new Gtk2::Notebook;
@@ -87,35 +89,48 @@ sub new {
 sub login {
    my ($self) = @_;
 
-   $self->{conn}->disconnect;
+   $self->{protocol}->disconnect;
 
    # initialize new socket and connection
    my $sock = new IO::Socket::INET PeerHost => KGS::Protocol::KGSHOST, PeerPort => KGS::Protocol::KGSPORT
-      or die "connect: $!";
+      or do {
+         app::status ("connect", "connect: $!");
+         $self->event_quit;
+         return;
+      };
+
+   $self->{login}->set (sensitive => 0);
+   $self->{password}->set (sensitive => 0);
 
    $sock->blocking (1);
-   $self->{conn}->handshake ($sock);
+   $self->{protocol}->handshake ($sock);
    $sock->blocking (0);
+
+   $self->listen ($self->{protocol});
+   $self->{roomlist}->listen ($self->{protocol});
+   #$self->{gamelist}->listen ($conn);
+
+   # now login
+   $ENV{KGSUEME_CLIENTVER} ||= "1.4.2_03:Swing app:Sun Microsystems Inc."; # he asked for it...#d#
+   $self->{protocol}->login ($ENV{KGSUEME_CLIENTVER} || "kgsueme $VERSION $^O", # allow users to overwrite
+                             $self->{login}->get_text,
+                             $self->{password}->get_text,
+                             "en_US");
 
    my $input; $input = add_watch Glib::IO fileno $sock, [G_IO_IN, G_IO_ERR, G_IO_HUP], sub {
       # this is dorked
       my $buf;
       my $len = sysread $sock, $buf, 16384;
       if ($len) {
-         $self->{conn}->feed_data ($buf);
+         $self->{protocol}->feed_data ($buf);
       } elsif (defined $len || (!$!{EINTR} and !$!{EAGAIN})) {
-         warn "disconnected";#d#
          remove Glib::Source $input;
-         $self->event_disconnect;
+         $self->{protocol}->disconnect;
+         warn "disconnect: $!";#TODO#
+         app::status ("disconnect", "$!");#TODO# not visible
       }
       1;
    }, G_PRIORITY_HIGH;
-
-   # now login
-   $ENV{KGSUEME_CLIENTVER} = "1.4.1_01:Swing app:Sun Microsystems Inc."; # he asked for it...#d#
-   $self->{conn}->login($ENV{KGSUEME_CLIENTVER} || "kgsueme $VERSION $^O", # allow users to overwrite
-                        $self->{login}->get_text,
-                        $self->{password}->get_text);
 }
 
 sub inject_login {
@@ -139,6 +154,12 @@ sub inject_login {
    }
 }
 
+sub listen {
+   my $self = shift;
+
+   $self->SUPER::listen (@_, qw(login userpic idle_warn msg_chat chal_defaults upd_rooms));
+}
+
 sub inject_idle_warn {
    my ($self, $msg) = @_;
 
@@ -153,6 +174,17 @@ sub inject_msg_chat {
          $self->open_user (name => $msg->{name})->inject ($msg);
          sound::play 2, "ring";
       }
+   }
+}
+
+sub inject_upd_rooms {
+   my ($self, $msg) = @_;
+
+   return if %{$self->{room}};
+
+   # join default room
+   for (@{$msg->{rooms}}) {
+      $self->open_room (%$_) if $_->is_default;
    }
 }
 
@@ -196,9 +228,15 @@ sub inject_userpic {
    $_->($userpic{$msg->{name}}) for @{delete $userpic_cb{$msg->{name}} || []};
 }
 
-sub event_disconnect {
-   $_->destroy
-      for values %{delete $self->{game} or {}}, values %{delete $self->{room} or {}};
+sub event_quit {
+   my ($self) = @_;
+
+   $self->SUPER::event_quit;
+
+   $self->{login}->set (sensitive => 1);
+   $self->{password}->set (sensitive => 1);
+
+   sound::play 2, "warning";
 }
 
 sub open_game {

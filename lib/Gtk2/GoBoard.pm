@@ -21,7 +21,7 @@ use Glib::Object::Subclass
       Glib::ParamSpec->scalar (
          "cursor",
          "cursor callback",
-         "The callback that modified the cursor mask",
+         "The callback that modifies the cursor mask",
          [qw(writable readable)],
       ),
    ],
@@ -104,7 +104,7 @@ sub INIT_INSTANCE {
    $self->{canvas}->signal_connect_after (configure_event => sub { $self->configure_event ($_[1]) });
    $self->{canvas}->signal_connect_after (realize => sub {
       my $window = $_[0]->window;
-      my $color = new Gtk2::Gdk::Color 0xe0e0, 0xb2b2, 0x5e5e;
+      my $color = new Gtk2::Gdk::Color 0xdfdf, 0xb2b2, 0x5d5d;
       $window->get_colormap->alloc_color ($color, 0, 1);
       $window->set_background ($color);
    });
@@ -454,7 +454,8 @@ sub draw_stack {
 
       for ([MARK_CIRCLE,   $::circle_img[$dark_bg]],
            [MARK_TRIANGLE, $::triangle_img[$dark_bg]],
-           [MARK_SQUARE,   $::square_img[$dark_bg]]) {
+           [MARK_SQUARE,   $::square_img[$dark_bg]],
+           [MARK_KO,       $::square_img[$dark_bg]]) {
         my ($mask, $img) = @$_;
         if ($mark & $mask) {
            $img->composite (
@@ -495,8 +496,8 @@ sub draw_board {
 
       if ($dopaint && @areas) {
          # a single full clear_area is way faster than many single calls here
-         # the "cut-off" point is arbitrary
-         if (@areas > 32) {
+         # the "cut-off" point is quite arbitrary
+         if (@areas > 64) {
             # update a single rectangle only
             my $rect = new Gtk2::Gdk::Rectangle @{pop @areas};
             $rect = $rect->union (new Gtk2::Gdk::Rectangle @$_) for @areas;
@@ -520,7 +521,7 @@ sub cursor {
 
    my $mark = $self->{board}{board}[$x][$y];
 
-   $mark = $self->{cursor}->($mark) if $show;
+   $mark = $self->{cursor}->($mark, $x, $y) if $show;
 
    local $self->{board}{board}[$x][$y] = $mark;
    $self->{window}->clear_area (@{ $self->{draw_stone}->($x + 1, $y + 1) });

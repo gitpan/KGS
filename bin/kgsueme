@@ -35,7 +35,7 @@ BEGIN {
 
    use KGS::Constants;
 
-   for (qw(util.pl gtk.pl chat.pl superchat.pl sound.pl user.pl gamelist.pl userlist.pl
+   for (qw(util.pl gtk.pl chat.pl sound.pl user.pl gamelist.pl userlist.pl
            game.pl room.pl roomlist.pl app.pl)) {
       require (KGS::Constants::findfile "KGS/kgsueme/$_");
       die if $@;
@@ -44,6 +44,12 @@ BEGIN {
 
 if ($ENV{KGSUEME_DEBUG}) {
    use KGS::Constants;
+
+   my $window = new Gtk2::Window 'toplevel';
+   $window->add (new game::userpanel colour => 0);
+   $window->show_all;
+
+   main Gtk2;
 
    for (19) {
       my $game = new game size => $_;

@@ -28,8 +28,21 @@
        <td><xsl:value-of select="@value"/>&#160;</td>
        <td>
            <!-- horrible hack -->
-           <xsl:apply-templates select="following-sibling::node()[1][name() != 'member']"/>
-           <xsl:apply-templates select="child::node()[2][name() = 'p']"/>
+           <xsl:if test="following-sibling::node()[1][name() != 'member']">
+              <xsl:apply-templates select="following-sibling::node()[1]"/>
+              <xsl:if test="following-sibling::node()[2][name() != 'member']">
+                 <xsl:apply-templates select="following-sibling::node()[2]"/>
+                 <xsl:if test="following-sibling::node()[3][name() != 'member']">
+                    <xsl:apply-templates select="following-sibling::node()[3]"/>
+                    <xsl:if test="following-sibling::node()[4][name() != 'member']">
+                       <xsl:apply-templates select="following-sibling::node()[4]"/>
+                       <xsl:if test="following-sibling::node()[5][name() != 'member']">
+                          <xsl:apply-templates select="following-sibling::node()[5]"/>
+                       </xsl:if>
+                    </xsl:if>
+                 </xsl:if>
+              </xsl:if>
+           </xsl:if>
            &#160;
        </td>
        <td>

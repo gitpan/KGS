@@ -9,6 +9,7 @@ use Glib::Object::Subclass
 
 sub new {
    my ($self, %arg) = @_;
+
    $self = $self->Glib::Object::new;
    $self->{$_} = delete $arg{$_} for keys %arg;
 
@@ -30,7 +31,7 @@ sub new {
    
    $vbox->add ($self->{chat} = new chat);
 
-   $self->{chat}->signal_connect(command => sub {
+   $self->{chat}->signal_connect (command => sub {
       my ($chat, $cmd, $arg) = @_;
       $self->{app}->do_command ($chat, $cmd, $arg, userlist => $self->{userlist}, room => $self);
    });
@@ -44,7 +45,7 @@ sub new {
    $button->signal_connect (clicked => sub { $self->new_game });
 
    $vbox->pack_start ((my $sw = new Gtk2::ScrolledWindow), 1, 1, 0);
-   $sw->set_policy("automatic", "always");
+   $sw->set_policy ("automatic", "always");
 
    $sw->add ($self->{userlist} = new userlist);
 
@@ -55,17 +56,17 @@ sub FINALIZE_INSTANCE { print "FIN room\n" } # never called MEMLEAK #d#TODO#
 
 sub part {
    my ($self) = @_;
-   $self->SUPER::part;
 
-   $self->hide_all;
+   $self->hide;
+   $self->SUPER::part;
 }
 
 sub inject_msg_room {
    my ($self, $msg) = @_;
 
    # secret typoe ;-)
-   $self->{chat}->append_text ("\n<header><user>" . (util::toxml $msg->{name})
-                               . "</user>: </header>" . (util::toxml $msg->{message}));
+   $self->{chat}->append_text ("\n<user>" . (util::toxml $msg->{name})
+                               . "</user>: " . (util::toxml $msg->{message}));
 }
 
 sub event_update_users {
@@ -116,6 +117,13 @@ sub event_part {
    $self->destroy;
 }
 
+sub event_quit {
+   my ($self) = @_;
+
+   $self->SUPER::event_quit;
+   $self->destroy;
+}
+
 sub event_update_roominfo {
    my ($self) = @_;
 
@@ -126,25 +134,8 @@ sub event_update_roominfo {
 sub new_game {
    my ($self) = @_;
 
-   my $d = $self->{app}{defaults};
-
    my $game = new game conn => $self->{conn}, app => $self->{app}, roomid => $self->{channel};
-   $game->{challenge}{""} = {
-      gametype => $d->{gametype},
-      flags    => 0,
-      notes    => $d->{stones},
-      rules    => {
-         ruleset  => $d->{ruleset},
-         size     => $d->{size},
-         timesys  => $d->{timesys},
-         time     => $d->{time},
-         interval => $d->{timesys} == TIMESYS_BYO_YOMI ? $d->{byo_time}    : $d->{can_time},
-         count    => $d->{timesys} == TIMESYS_BYO_YOMI ? $d->{byo_periods} : $d->{can_stones},
-      },
-
-      inlay => $game->{chat}->new_inlay,
-   };
-   $game->draw_challenge ("");
+   $game->new_game_challenge;
    $game->show_all;
 
    push @{$self->{new_game}}, $game;

@@ -3,24 +3,27 @@ package roomlist;
 use KGS::Constants;
 
 use base KGS::Listener::Roomlist;
-use base gtk::widget;
+
+use Glib::Object::Subclass
+   Gtk2::Window;
 
 sub new {
-   my $self = shift;
-   $self = $self->SUPER::new(@_);
+   my ($self, %arg) = @_;
 
-   $self->listen($self->{conn});
+   $self = $self->Glib::Object::new;
+   $self->{$_} = delete $arg{$_} for keys %arg;
+   gtk::state $self, "roomlist::window", undef, window_size => [400, 300];
 
-   $self->{widget} = new Gtk2::Window 'toplevel';
-   $self->{widget}->set_title('KGS Rooms');
-   gtk::state $self->{widget}, "roomlist::window", undef, window_size => [450, 200];
+   $self->listen ($self->{conn});
 
-   $self->{widget}->signal_connect(delete_event => sub { $self->{widget}->hide; 1 });
+   $self->set_title('KGS Rooms');
 
-   $self->{widget}->add(my $vbox = new Gtk2::VBox);
+   $self->signal_connect(delete_event => sub { $self->hide; 1 });
 
-   $vbox->pack_start((my $sw = new Gtk2::ScrolledWindow), 1, 1, 0);
-   $sw->set_policy("automatic", "always");
+   $self->add (my $vbox = new Gtk2::VBox);
+
+   $vbox->pack_start ((my $sw = new Gtk2::ScrolledWindow), 1, 1, 0);
+   $sw->set_policy ("automatic", "always");
 
    $self->{roomlist} = new Gtk2::ListStore Glib::Scalar, Glib::String, Glib::String, Glib::Int, Glib::Int, Glib::Int, Glib::Int;
    gtk::state $self->{roomlist}, "roomlist::model", undef, modelsortorder => [2, 'descending'];
@@ -39,7 +42,7 @@ sub new {
       $column->set_sort_column_id($idx);
       $column->set(resizable => 1, sizing => 'fixed', clickable => 1);
       gtk::state $column, "roomlist::model::$_", undef,
-         column_size => [0, 60, 450, 60, 60, 60, 60]->[$idx];
+         column_size => [0, 60, 250, 50, 40, 25, 25]->[$idx];
       $treeview->append_column ($column);
       
       $idx++;

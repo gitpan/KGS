@@ -40,14 +40,14 @@ sub join {
    return if $self->{joined};
 
    delete $self->{users};
-   $self->send($type => channel => $self->{channel}, user => { name => $self->{conn}->{name} });
+   $self->send ($type => channel => $self->{channel}, user => { name => $self->{conn}->{name} });
 }
 
 sub part {
    my ($self, $type) = @_;
    return unless $self->{joined};
 
-   $self->send($type => channel => $self->{channel}, name => $self->{conn}->{name});
+   $self->send ($type => channel => $self->{channel}, name => $self->{conn}->{name});
 }
 
 =item $channel->event_join
@@ -65,8 +65,16 @@ sub event_join {
 
 sub event_part {
    my ($self) = @_;
+
    delete $self->{joined};
    $self->event_update_users ([], [], [values %{(delete $self->{users}) || {}}]);
+}
+
+sub event_quit {
+   my ($self) = @_;
+
+   $self->SUPER::event_quit;
+   event_part ($self);
 }
 
 =item $channel->event_update_users ($add, $update, $remove)

@@ -4,7 +4,7 @@
 <title>KGS Protocol Description</title>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
 <!--
-    Copyright (C) 2003      Marc Lehmannn &lt;pcg@goof.com&gt;
+    Copyright (C) 2003,2004 Marc Lehmannn &lt;pcg@goof.com&gt;
  
     You can redistribute and/or modify this document under the terms of
     the GNU General Public License as published by the Free Software
@@ -23,27 +23,17 @@
 </head>
 <body>
 
-<h1>$Revision: 1.69 $</h1>
+<h1>$Revision: 1.74 $</h1>
 
 <h1>KGS Protocol Description</h1>
 
    <p>This XML document describes the KGS protocol. It is also used
    to automatically generate the perl parser for all the messages and
    structures in the protocol. Adapting it to other languages should be
-   almost trivial.</p>
-
-   <p><b>Please note that wms has told me that he will change the
-   protocol in response to my efforts. No problems with changing the
-   protocol for good, but he does this just to make it more difficult
-   to reverse-engineer it, since his changes are neither required, nor
-   useful (they just make the protocol less robust, without adding added
-   value). He doesn't even care that this locks out some users who cannot
-   upgrade (cgoban2 isn't available for their platform anymore). It hurts
-   to see such a waste of time and efforts that could have been used to
-   fix bugs or improve the client...</b></p>
+   almost trivial (and partly has been done).</p>
 
    <p>If you feel you need to update the visual appearance of this
-   document, feel free to look <tt>doc/doc2html.xsl</tt> and improve
+   document, feel free to look at <tt>doc/doc2html.xsl</tt> and improve
    it.</p>
 
    <p>The current version of this document can always be found at 
@@ -66,7 +56,13 @@
    I know java is supposed to do UTF-16, but no implementation seems to
    care...</p>
 
-   <p>For the rest, go figure or bug me, <a href="mailto:pcg@goof.com">Marc Lehmann &lt;pcg@goof.com&gt;</a></p>
+   <p>To get a feel for the protocol, get the <tt>KGS</tt> perl module
+   from CPAN, install it an run <tt>kgstrace</tt>, then conenct to
+   <tt>127.0.0.1</tt> with your client. <tt>kgstrace</tt> will dump all
+   messages from and to the server.</p>
+
+   <p>For the rest, go figure or bug me, <a
+   href="mailto:pcg@goof.com">Marc Lehmann &lt;pcg@goof.com&gt;</a></p>
 
 <h2>Stream and message structure.</h2>
 
@@ -74,7 +70,7 @@
    the major version number of the protocol the client expects to
    receive. Version 3 and 4 are mostly the same, except that Version 4
    clients expect server messages to be compressed, version 3 clients
-   not.</p>
+   do not. (version 3 probably is no longer supported).</p>
 
    <p>The server sends back his protocol number, which is always 3 in
    the current protocol. Most of the protocol variation is determined by
@@ -89,7 +85,6 @@
    <p>All messages have the same header:</p>
 
    <struct name="message_header">
-      <member name="_unknown" type="U16"/>
       <member name="length" type="U16"/>
 
       <p>The length is the length of the full message including the header.</p>
@@ -1004,8 +999,9 @@
       
    </message>
 
-   <message type="030c" name="unknown_030c" src="server">
-      <p>Not the slightest... No payload, either.</p>
+   <message type="030c" name="login_done" src="server">
+      <p>Is sent after the initial messages, probably
+      to signify the end of the login process.</p>
    </message>
 
    <message type="0310" name="priv_room" src="server">
@@ -1181,11 +1177,12 @@
       <member name="whitescore" type="scorevalues"/>
    </message>
 
-   <message type="440c" name="out_of_time" src="server">
-      <p>Sent when the user is out of time and moves, or when the opponent
+   <message type="440c" name="time_win" src="server">
+      <p>Sent when the opponent is out of time and moves, or when the other
       requests <ref reply="userinfo"/>.</p>
       <member name="channel" type="U16"/>
       <member name="player" type="U8"/>
+      <p>Colour who won.</p>
    </message>
 
    <message type="440e" name="req_undo" src="server">

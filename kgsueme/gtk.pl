@@ -12,7 +12,46 @@ Gtk2::Rc->parse_string(<<EOF);
    }
    widget_class "*" style "base"
 
+   style "whitestyle" {
+      fg[NORMAL] = "#000000"
+      bg[NORMAL] = "#ffffff"
+   }
+   style "blackstyle" {
+      fg[NORMAL] = "#ffffff"
+      bg[NORMAL] = "#000000"
+   }
+
+   widget "*.userpanel-0.*" style "blackstyle"
+   widget "*.userpanel-1.*" style "whitestyle"
+
 EOF
+
+sub flush {
+   do {
+      flush Gtk2::Gdk;
+      Glib::MainContext->default->iteration (0);
+   } while Gtk2::Gdk->events_pending;
+}
+
+sub for_all($) {
+   (
+      $_[0],
+      $_[0]->isa (Gtk2::Container)
+         ? map for_all ($_), $_[0]->get_children
+         : ()
+   )
+}
+
+sub double_buffered {
+   return;#d#
+   my ($widget, $state) = @_;
+
+   for (for_all $widget) {
+      $_->set_double_buffered ($state);
+      print "$_\n";#d#
+   }
+      print "<<<\n";#d#
+}
 
 our $text_renderer = new Gtk2::CellRendererText;
 our $int_renderer  = new Gtk2::CellRendererText;
@@ -109,46 +148,94 @@ sub image_from_data {
    $img;
 }
 
-package gtk::widget;
+#############################################################################
 
-# hacked gtk pseudo-widget
+sub optionmenu {
+   my ($ref, @entry) = @_;
 
-sub new {
-   my $class = shift;
-   bless { @_ }, $class;
-}
+   my @vals;
 
-sub widget { $_[0]{widget} }
+   my $widget = new Gtk2::OptionMenu;
+   $widget->set (menu => my $menu = new Gtk2::Menu);
 
-sub AUTOLOAD {
-   $AUTOLOAD =~ /::([^:]+)$/ or Carp::confess "$AUTOLOAD: no such method (illegal name)";
-   ref $_[0]{widget} or Carp::confess "AUTOLOAD: non-method call $AUTOLOAD(@_)\n";
-   my $method = $_[0]{widget}->can($1)
-      or Carp::confess "$AUTOLOAD: no such method";
-   # do NOT cache.. we are fats enough this way
-   unshift @_, shift->{widget};
-   &$method;
-}
+   my $idx = 0;
 
-sub destroy {
-   my ($self) = @_;
-   warn "destroy($self)";#d#
+   while (@entry >= 2) {
+      my $value = shift @entry;
+      my $label = shift @entry;
 
-   delete $self->{app};
+      $menu->append (new Gtk2::MenuItem $label);
+      push @vals, $value;
 
-   for (keys %$self) {
-      warn "$self->{$_} destroy" if UNIVERSAL::can ($self->{$_}, "destroy");
-      (delete $self->{$_})->destroy
-         if UNIVERSAL::can ($self->{$_}, "destroy");
-#         if (UNIVERSAL::isa ($self->{$_}, Glib::Object)
-#             && UNIVERSAL::isa ($self->{$_}, gtk::widget))
-#            && $self->{$_}->can("destroy");
+      if ($value eq $$ref && $idx >= 0) {
+         $widget->set_history ($idx);
+         $idx = -1e6;
+      }
+      $idx++;
    }
+
+   my $cb = shift @entry;
+
+   $widget->signal_connect (changed => sub {
+      my $new = $vals[$_[0]->get_history];
+
+      if ($new ne $$ref) {
+         $$ref = $new;
+         $cb->($new) if $cb;
+      }
+   });
+
+   $widget;
 }
 
-sub DESTROY {
-   my ($self) = @_;
-   warn "DESTROY($self)";#d#
+sub textentry {
+   my ($ref, $width, $cb) = @_;
+
+   my $widget = new Gtk2::Entry;
+   $widget->set (text => $$ref, width_chars => $width);
+   $widget->signal_connect (changed => sub {
+      $$ref = $_[0]->get_text;
+      $cb->($$ref) if $cb;
+   });
+
+   $widget;
+}
+
+sub numentry {
+   my ($ref, $width, $cb) = @_;
+
+   my $widget = new Gtk2::Entry;
+   $widget->set (text => $$ref, width_chars => $width);
+   eval { $widget->set (xalign => 1) }; # workaround für 2.2
+   $widget->signal_connect (changed => sub {
+      $$ref = $_[0]->get_text;
+      $cb->($$ref) if $cb;
+   });
+
+   $widget;
+}
+
+sub timeentry {
+   my ($ref, $width, $cb) = @_;
+
+   my $widget = new Gtk2::Entry;
+   $widget->set (text => util::format_time $$ref, width_chars => $width);
+   eval { $widget->set (xalign => 1) }; # workaround für 2.2
+   $widget->signal_connect (changed => sub {
+      $$ref = util::parse_time $_[0]->get_text;
+      $cb->($$ref) if $cb;
+   });
+
+   $widget;
+}
+
+sub button {
+   my ($label, $cb) = @_;
+
+   my $widget = new_with_label Gtk2::Button $label;
+   $widget->signal_connect (clicked => sub { $cb->() if $cb });
+
+   $widget;
 }
 
 1;

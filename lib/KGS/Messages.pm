@@ -348,7 +348,6 @@ sub enc_CLIENTID8 {
 sub dec_message_header {
    my $r = {};
    
-   $r->{_unknown} = dec_U16 q||;
    $r->{length} = dec_U16 q||;
    $r->{type} = dec_U16 q||;
    $r;
@@ -356,7 +355,6 @@ sub dec_message_header {
 
 sub enc_message_header {
    
-   enc_U16 defined $_[0]{_unknown} ? $_[0]{_unknown} : (q||);
    enc_U16 defined $_[0]{length} ? $_[0]{length} : (q||);
    enc_U16 defined $_[0]{type} ? $_[0]{type} : (q||);
 }
@@ -2405,15 +2403,15 @@ $enc_server{notify_event} = sub {
    $data;
 };
 
-# unknown_030c
+# login_done
 $dec_server{0x030c} = sub {
    $data = $_[0];
    my $r;
-   $r->{type} = "unknown_030c";
+   $r->{type} = "login_done";
    
    $r;
 };
-$enc_server{unknown_030c} = sub {
+$enc_server{login_done} = sub {
    $data = "";
    enc_U16 0x030c;
    
@@ -2991,17 +2989,17 @@ $enc_server{final_result} = sub {
    $data;
 };
 
-# out_of_time
+# time_win
 $dec_server{0x440c} = sub {
    $data = $_[0];
    my $r;
-   $r->{type} = "out_of_time";
+   $r->{type} = "time_win";
    
    $r->{channel} = dec_U16 q||;
    $r->{player} = dec_U8 q||;
    $r;
 };
-$enc_server{out_of_time} = sub {
+$enc_server{time_win} = sub {
    $data = "";
    enc_U16 0x440c;
    

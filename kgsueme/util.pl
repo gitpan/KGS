@@ -24,8 +24,8 @@ $::config->{randomize}       = 0; # randomize placement of stones (BROKEN)
 
 sub save_config {
    &gtk::save_state;
-   Storable::nstore($state, $staterc);
-   app::status("save_state", "layout saved");
+   Storable::nstore ($state, $staterc);
+   app::status ("save_state", "layout saved");
 }
 
 sub format_time($) {
@@ -34,6 +34,14 @@ sub format_time($) {
    $time > 60*60
       ? sprintf "%d:%02d:%02d", $time / (60 * 60), $time / 60 % 60, $time % 60
       : sprintf      "%d:%02d", $time / 60 % 60, $time % 60;
+}
+
+sub parse_time($) {
+
+   my $time;
+   $time = $time * 60 + $_ for split /:/, $_[0];
+
+   $time;
 }
 
 # text to xml

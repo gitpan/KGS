@@ -4,7 +4,7 @@ use base KGS::Listener;
 
 sub listen {
    my $self = shift;
-   $self->SUPER::listen(@_, qw(upd_rooms));
+   $self->SUPER::listen (@_, qw(upd_rooms));
 }
 
 sub inject_upd_rooms {
@@ -16,7 +16,7 @@ sub inject_upd_rooms {
    $self->event_update_rooms;
 }
 
-sub event_update {}
+sub event_update_rooms {}
 
 1;
 

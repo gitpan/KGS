@@ -11,7 +11,7 @@ sub listen {
                             req_undo: set_teacher: superko: final_result:
                             owner_left: teacher_left: req_result: challenge:
                             set_gametime: new_game: reject_challenge:
-                            out_of_time: game_done: set_comments: add_comments:
+                            time_win: game_done: set_comments: add_comments:
                             more_comments: already_playing));
 }
 
@@ -61,8 +61,23 @@ sub inject_upd_game {
 sub inject_set_teacher {
    my ($self, $msg) = @_;
 
-   $self->{teacher} = $msg->{name};
+   length $msg->{name}
+      ? $self->{teacher} = $msg->{name}
+      : delete $self->{teacher};
+
    $self->event_update_game;
+}
+
+sub inject_owner_left {
+   my ($self, $msg) = @_;
+
+   $self->event_owner_left ($msg->{message});
+}
+
+sub inject_teacher_left {
+   my ($self, $msg) = @_;
+
+   $self->event_teacher_left ($msg->{message});
 }
 
 sub inject_del_game {
@@ -149,10 +164,10 @@ sub inject_resign_game {
    $self->event_resign_game ($msg->{player});
 }
 
-sub inject_out_of_time {
+sub inject_time_win {
    my ($self, $msg) = @_;
 
-   $self->event_out_of_time ($msg->{player});
+   $self->event_time_win ($msg->{player});
 }
 
 sub inject_game_done {
@@ -184,13 +199,17 @@ sub event_update_game { }
 sub event_challenge { }
 
 # $player
-sub event_out_of_time { }
+sub event_time_win { }
 
 # $player
 sub event_resign_game { }
 
 # ()
 sub event_resign_done { }
+
+# ()
+sub event_owner_left { }
+sub event_teacher_left { }
 
 sub event_reject_challenge {
    my ($self) = @_;

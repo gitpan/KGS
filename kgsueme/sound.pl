@@ -20,11 +20,13 @@ sub play {
    my ($annoyancy, $sound) = @_;
    # annoyany 1 => important, annoyance 2 => useful, annoyancy 3 => not useful
    if (fork == 0) {
-      if (my $audioserver = new Audio::Play (1)) {
-         $audioserver->play ($sound{$sound});
-         $audioserver->flush;
-         undef $audioserver;
-      }
+      eval {
+         if (my $audioserver = new Audio::Play (1)) {
+            $audioserver->play ($sound{$sound});
+            $audioserver->flush;
+            undef $audioserver;
+         }
+      };
       use POSIX ();
       POSIX::_exit(0);
    }

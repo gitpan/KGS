@@ -16,7 +16,6 @@ doc/doc2c++.xsl
 doc/doc2haskell.xsl
 
 bin/kgsueme
-bin/kgsueme-gtk1
 bin/kgstrace
 bin/gtp-controller
 bin/kgs-igs
@@ -49,7 +48,6 @@ kgsueme/util.pl
 kgsueme/roomlist.pl
 kgsueme/user.pl
 kgsueme/chat.pl
-kgsueme/superchat.pl
 
 images/default_userpic.png
 

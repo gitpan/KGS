@@ -108,13 +108,13 @@ sub req_games {
 sub inject_join_room {
    my ($self, $msg) = @_;
 
-   $self->add_users($msg->{users});
+   $self->add_users ($msg->{users});
 }
 
 sub inject_part_room {
    my ($self, $msg) = @_;
 
-   $self->del_users([$msg->{user}]);
+   $self->del_users ([$msg->{user}]);
 }
 
 sub inject_upd_games {
@@ -179,10 +179,26 @@ Called when the user left the room.
 
 =cut
 
+#TODO# should only do this on DESTROY
+
+sub _clear {
+   my ($self) = @_;
+
+   $self->event_update_games ([], [], [values %{delete $self->{games} || {}}]);
+}
+
 sub event_part {
    my ($self) = @_;
+
    $self->SUPER::event_part;
-   $self->event_update_games ([], [], [values %{delete $self->{games} || {}}]);
+   _clear ($self);
+}
+
+sub event_quit {
+   my ($self) = @_;
+
+   $self->SUPER::event_quit;
+   _clear ($self);
 }
 
 =item $room->event_update_games ($add, $update, $remove)

@@ -15,7 +15,7 @@ my $SGFHOST = "216.93.172.124";
 
 our $NOW; # the time the last packet was received
 
-our $VERSION = "0.9";
+our $VERSION = "0.95";
 
 sub MSG_CHANNEL() { 0x4000 }
 
@@ -105,8 +105,6 @@ Do the initial handshaking with the server on the given socket and make it
 the current one. This will initialize the communications stack and set the
 socket to be used to sending messages.
 
-"Sockets" should not be anywhere near this module, so this will change.
-
 =cut
 
 sub handshake {
@@ -138,7 +136,7 @@ sub login {
    $self->{generator}->set_server_seed ($name);
 
    $self->{name} = $name;
-   $self->send(login =>
+   $self->send (login =>
       name      => $name,
       password  => $pass,
       locale    => $locale,
@@ -149,14 +147,19 @@ sub login {
 
 =item disconnect
 
-Disconnect the socket.
+Close the socket, generate a quit message and unregisters listeners.
 
 =cut
 
 sub disconnect {
    my $self = shift;
 
-   $self->{sock}->close if $self->{sock};
+   close delete $self->{sock}
+      if $self->{sock};
+
+   $self->inject ({ type => "quit" });
+
+   delete $self->{cb};
 }
 
 =item feed_data $data
@@ -167,11 +170,11 @@ result in messages being dispatched.
 =cut
 
 sub feed_data {
-   my $self = shift;
+   my $self = $_[0];
 
    $NOW = Time::HiRes::time;
 
-   my ($data, $status) = $self->{zstream}->inflate ($_[0]);
+   my ($data, $status) = $self->{zstream}->inflate ($_[1]);
    $status == Z_OK or croak "inflate: status is $status";
 
    $self->{rbuf} .= $data;
@@ -181,7 +184,7 @@ sub feed_data {
       if (delete $self->{rlen}) {
          #open XTYPE, "|xtype"; printf XTYPE "%16x", length($data); print XTYPE $data; close XTYPE;#d#
 
-         $self->_inject (decode_msg $self->{generator}->dec_server ($data));
+         $self->inject (decode_msg $self->{generator}->dec_server ($data));
       } else {
          $self->{rlen} = (unpack "v", $data) - 2;
       }
@@ -203,7 +206,7 @@ sub unregister {
    delete $self->{cb}{$_}{$obj} for @types;
 }
 
-sub _inject {
+sub inject {
    my ($self, $msg) = @_;
    
    $msg->{NOW} = $NOW; # timestamps heissen bei mir "NOW"

@@ -15,7 +15,7 @@ sub new {
    });
 
    $self->set(position_set => 1);
-   gtk::state $self, "gamelist::vpane", undef, position => 60;
+   gtk::state $self, "gamelist::vpane", undef, position => 120;
 
    $self->{model1} = new Gtk2::ListStore Glib::Scalar,
         Glib::String, Glib::String, Glib::String, Glib::String, Glib::Int, Glib::String, Glib::String;

@@ -1,5 +1,17 @@
 Revision history for Perl extension KGS.
 
+0.95 Fri Jun  4 04:43:30 CEST 2004
+	- the converted html documentation lacked most of
+          the descriptions. Doh!
+        - the polyphase resampling destroyed some sounds.
+        - much better behaviour on connection close.
+        - suicide now supported by Board.pm.
+        - major speedup for Board.pm by caching wether captures
+          are required for a given move.
+        - simple ko detection and display.
+        - much better portability to old Gtk2 versions and gtk+-2.2.
+        - better default layout.
+
 0.9  Mon May 31 05:06:39 CEST 2004
 	- played a few test games, fixed the "Done" problem
           and corrected a few minor glitches. Is playable,
