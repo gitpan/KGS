@@ -1,0 +1,10 @@
+Revision history for Perl extension KGS.
+
+0.2  Mon May 17 03:35:10 CEST 2004
+	- added a Changes file.
+	- lots of bugfixes.
+        - lots of protocol updates.
+        - more correct tree d-/encoding.
+        - bin/gtp-controller, lets you join games etc. using gtp.
+
+

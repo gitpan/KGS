@@ -64,11 +64,13 @@ sub dec_DATA {
    (my ($r), $data) = ($data, ""); $r;
 }
 
-sub dec_STRING {
+sub dec_ZSTRING {
    $data =~ s/^((?:..)*?)(?:\x00\x00|\Z)//s;
    # use Encode...
    join "", map chr, unpack "v*", $1;
 }
+
+BEGIN { *dec_STRING = \&dec_ZSTRING };
 
 sub dec_CONSTANT {
    $_[0];
@@ -116,6 +118,11 @@ sub enc_I32 {
 sub enc_DATA {
    # a dream!
    $data .= $_[0];
+}
+
+sub enc_ZSTRING {
+   # should use encode for speed and clarity ;)
+   $data .= pack "v*", (map ord, split //, $_[0]), 0;
 }
 
 sub enc_STRING {
@@ -588,13 +595,13 @@ sub dec_TREE {
          push @r, [score => dec_U8, dec_score1000];
 
       } elsif ($type == 29) {
-         push @r, [type_29 => dec_STRING];
+         push @r, [type_29 => dec_ZSTRING];
          warn "TYPE 29 $r[-1][1]\007 PLEASE REPORT";#d#
          die;
 
       } elsif ($type == 28) {
          # move number, only in variations it seems. oh my.
-         push @r, [movenum => dec_STRING];
+         push @r, [movenum => dec_ZSTRING];
 
       } elsif ($type == 25) {
          push @r, [result => dec_result];
@@ -603,7 +610,7 @@ sub dec_TREE {
          push @r, [mark => $add, MARK_GRAYED, dec_U8, dec_U8];
 
       } elsif ($type == 22) {
-         push @r, [mark => $add, (&dec_U8 ? MARK_SMALL_W : MARK_SMALL_B), dec_U8, dec_U8];
+         push @r, [mark => $add, dec_U8() ? MARK_SMALL_W : MARK_SMALL_B, dec_U8, dec_U8];
 
       } elsif ($type == 21) {
          push @r, [mark => $add, MARK_CIRCLE, dec_U8, dec_U8];
@@ -615,16 +622,16 @@ sub dec_TREE {
          push @r, [mark => $add, MARK_TRIANGLE, dec_U8, dec_U8];
 
       } elsif ($type == 18) {
-         push @r, [mark => $add, MARK_LABEL, dec_U8, dec_U8, dec_STRING];
+         push @r, [mark => $add, MARK_LABEL, dec_U8, dec_U8, dec_ZSTRING];
 
       } elsif ($type == 17) {
          push @r, [set_timer => (dec_U8, dec_U32, dec_time)[0,2,1]];
 
       } elsif ($type == 16) {
-         push @r, [set_stone => $add, dec_U8, dec_U8, dec_U8];
+         push @r, [set_stone => dec_U8, dec_U8, dec_U8];
 
       } elsif ($type == 14) {
-         push @r, [move => $add, dec_U8, dec_U8, dec_U8];
+         push @r, [move => dec_U8, dec_U8, dec_U8];
 
       } elsif (($type >= 4 && $type <= 9)
                || ($type >= 11 && $type <= 13)
@@ -641,13 +648,13 @@ sub dec_TREE {
               12 => "unknown_comment12",
               13 => "unknown_comment13",
               24 => "comment",
-               })->{$type} => dec_STRING];
+               })->{$type} => dec_ZSTRING];
 
       } elsif ($type == 3) {
          push @r, [rank => dec_U8, dec_U32];
 
       } elsif ($type == 2) {
-         push @r, [player => dec_U8, dec_STRING];
+         push @r, [player => dec_U8, dec_ZSTRING];
 
       } elsif ($type == 0) {
          # as usual, wms finds yet another way to duplicate code... oh well, what a mess.
@@ -686,29 +693,48 @@ sub enc_TREE {
 
       } elsif ($type eq "movenum") {
          enc_U8 28;
-         enc_STRING $arg[0];
+         enc_ZSTRING $arg[0];
 
       } elsif ($type eq "set_stone") {
-         enc_U8 16 + ($arg[0] && 128);
+         enc_U8 16;
+         enc_U8 $arg[0];
          enc_U8 $arg[1];
          enc_U8 $arg[2];
-         enc_U8 $arg[3];
 
       } elsif ($type eq "move") {
-         enc_U8 14 + ($arg[0] && 128);
+         enc_U8 14;
+         enc_U8 $arg[0];
          enc_U8 $arg[1];
          enc_U8 $arg[2];
-         enc_U8 $arg[3];
 
       } elsif ($type eq "comment") {
          enc_U8 24;
-         enc_STRING $arg[0];
+         enc_ZSTRING $arg[0];
+
+      } elsif ($type eq "mark") {
+         my $op = ({
+                  &MARK_GRAYED   => 23,
+                  &MARK_SMALL_B  => 22,
+                  &MARK_SMALL_W  => 22,
+                  &MARK_CIRCLE   => 21,
+                  &MARK_SQUARE   => 20,
+                  &MARK_TRIANGLE => 19,
+                  &MARK_LABEL    => 18,
+                })->{$arg[1]};
+
+         enc_U8 $op + ($arg[0] ? 0 : 128);
+         enc_U8 $arg[1] == MARK_SMALL_W if $op == 22;
+         enc_U8 $arg[2];
+         enc_U8 $arg[3];
+
+         enc_ZSTRING $arg[4] if $op == 18;
 
       } else {
          warn "unable to encode tree node type $type\n";
       }
    }
-}
+};
+
 
 
 #############################################################################
@@ -744,23 +770,6 @@ $enc_client{login} = sub {
    enc_U16 defined $_[0]{_unknown3} ? $_[0]{_unknown3} : (q|0|);
    enc_locale defined $_[0]{locale} ? $_[0]{locale} : (q|"en_US"|);
    enc_DATA defined $_[0]{clientver} ? $_[0]{clientver} : (q|"1.4.1_01:Swing app:Sun Microsystems Inc."|);
-   $data;
-};
-
-# req_userinfo
-$dec_client{0x0007} = sub {
-   $data = $_[0];
-   my $r;
-   $r->{type} = "req_userinfo";
-   
-   $r->{name} = dec_username q||;
-   $r;
-};
-$enc_client{req_userinfo} = sub {
-   $data = "";
-   enc_U16 0x0007;
-   
-   enc_username defined $_[0]{name} ? $_[0]{name} : (q||);
    $data;
 };
 
@@ -1045,8 +1054,8 @@ $dec_client{0x031a} = sub {
    $r->{b2} = dec_U8 q|255|;
    $r->{b3} = dec_U8 q|255|;
    $r->{group} = dec_U8 q|1|;
-   $r->{name} = dec_STRING q||;
-   $r->{description} = dec_STRING q||;
+   $r->{name} = dec_ZSTRING q||;
+   $r->{description} = dec_ZSTRING q||;
    $r->{flags} = dec_U8 q||;
    $r;
 };
@@ -1060,9 +1069,26 @@ $enc_client{new_room} = sub {
    enc_U8 defined $_[0]{b2} ? $_[0]{b2} : (q|255|);
    enc_U8 defined $_[0]{b3} ? $_[0]{b3} : (q|255|);
    enc_U8 defined $_[0]{group} ? $_[0]{group} : (q|1|);
-   enc_STRING defined $_[0]{name} ? $_[0]{name} : (q||);
-   enc_STRING defined $_[0]{description} ? $_[0]{description} : (q||);
+   enc_ZSTRING defined $_[0]{name} ? $_[0]{name} : (q||);
+   enc_ZSTRING defined $_[0]{description} ? $_[0]{description} : (q||);
    enc_U8 defined $_[0]{flags} ? $_[0]{flags} : (q||);
+   $data;
+};
+
+# req_upd_rooms
+$dec_client{0x031b} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "req_upd_rooms";
+   
+   $r->{channel} = dec_U16 q||;
+   $r;
+};
+$enc_client{req_upd_rooms} = sub {
+   $data = "";
+   enc_U16 0x031b;
+   
+   enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
    $data;
 };
 
@@ -1496,6 +1522,23 @@ $enc_client{reject_challenge} = sub {
    $data;
 };
 
+# save_game
+$dec_client{0x442e} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "save_game";
+   
+   $r->{channel} = dec_U16 q||;
+   $r;
+};
+$enc_client{save_game} = sub {
+   $data = "";
+   enc_U16 0x442e;
+   
+   enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
+   $data;
+};
+
 # req_result
 $dec_client{0x4433} = sub {
    $data = $_[0];
@@ -1510,6 +1553,25 @@ $enc_client{req_result} = sub {
    enc_U16 0x4433;
    
    enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
+   $data;
+};
+
+# set_quiet
+$dec_client{0x4434} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "set_quiet";
+   
+   $r->{channel} = dec_U16 q||;
+   $r->{quiet} = dec_U8 q||;
+   $r;
+};
+$enc_client{set_quiet} = sub {
+   $data = "";
+   enc_U16 0x4434;
+   
+   enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
+   enc_U8 defined $_[0]{quiet} ? $_[0]{quiet} : (q||);
    $data;
 };
 
@@ -2011,24 +2073,24 @@ $dec_server{0x001f} = sub {
    my $r;
    $r->{type} = "memo";
    
-   $r->{s1} = dec_STRING q||;
-   $r->{s2} = dec_STRING q||;
-   $r->{s3} = dec_STRING q||;
-   $r->{s4} = dec_STRING q||;
-   $r->{s5} = dec_STRING q||;
-   $r->{s6} = dec_STRING q||;
+   $r->{s1} = dec_ZSTRING q||;
+   $r->{s2} = dec_ZSTRING q||;
+   $r->{s3} = dec_ZSTRING q||;
+   $r->{s4} = dec_ZSTRING q||;
+   $r->{s5} = dec_ZSTRING q||;
+   $r->{s6} = dec_ZSTRING q||;
    $r;
 };
 $enc_server{memo} = sub {
    $data = "";
    enc_U16 0x001f;
    
-   enc_STRING defined $_[0]{s1} ? $_[0]{s1} : (q||);
-   enc_STRING defined $_[0]{s2} ? $_[0]{s2} : (q||);
-   enc_STRING defined $_[0]{s3} ? $_[0]{s3} : (q||);
-   enc_STRING defined $_[0]{s4} ? $_[0]{s4} : (q||);
-   enc_STRING defined $_[0]{s5} ? $_[0]{s5} : (q||);
-   enc_STRING defined $_[0]{s6} ? $_[0]{s6} : (q||);
+   enc_ZSTRING defined $_[0]{s1} ? $_[0]{s1} : (q||);
+   enc_ZSTRING defined $_[0]{s2} ? $_[0]{s2} : (q||);
+   enc_ZSTRING defined $_[0]{s3} ? $_[0]{s3} : (q||);
+   enc_ZSTRING defined $_[0]{s4} ? $_[0]{s4} : (q||);
+   enc_ZSTRING defined $_[0]{s5} ? $_[0]{s5} : (q||);
+   enc_ZSTRING defined $_[0]{s6} ? $_[0]{s6} : (q||);
    $data;
 };
 
@@ -2309,6 +2371,25 @@ $enc_server{error} = sub {
    enc_U16 0x0421;
    
    enc_CONSTANT defined $_[0]{message} ? $_[0]{message} : (q|Sorry, this game is a private lesson. You will not be allowed to observe it.|);
+   $data;
+};
+
+# add_global_challenge
+$dec_server{0x043a} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "add_global_challenge";
+   
+   $r->{channel} = dec_U16 q||;
+   $r->{game} = dec_game q||;
+   $r;
+};
+$enc_server{add_global_challenge} = sub {
+   $data = "";
+   enc_U16 0x043a;
+   
+   enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
+   enc_game defined $_[0]{game} ? $_[0]{game} : (q||);
    $data;
 };
 
@@ -2815,7 +2896,7 @@ $enc_server{reject_challenge} = sub {
 };
 
 # new_game
-$dec_client{0x442f} = sub {
+$dec_server{0x442f} = sub {
    $data = $_[0];
    my $r;
    $r->{type} = "new_game";
@@ -2824,7 +2905,7 @@ $dec_client{0x442f} = sub {
    $r->{id} = dec_U16 q||;
    $r;
 };
-$enc_client{new_game} = sub {
+$enc_server{new_game} = sub {
    $data = "";
    enc_U16 0x442f;
    
@@ -2850,22 +2931,41 @@ $enc_server{req_result} = sub {
    $data;
 };
 
-# unknown4434
+# set_quiet
 $dec_server{0x4434} = sub {
    $data = $_[0];
    my $r;
-   $r->{type} = "unknown4434";
+   $r->{type} = "set_quiet";
    
    $r->{channel} = dec_U16 q||;
-   $r->{b1} = dec_U8 q||;
+   $r->{quiet} = dec_U8 q||;
    $r;
 };
-$enc_server{unknown4434} = sub {
+$enc_server{set_quiet} = sub {
    $data = "";
    enc_U16 0x4434;
    
    enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
-   enc_U8 defined $_[0]{b1} ? $_[0]{b1} : (q||);
+   enc_U8 defined $_[0]{quiet} ? $_[0]{quiet} : (q||);
+   $data;
+};
+
+# del_global_challenge
+$dec_server{0x443b} = sub {
+   $data = $_[0];
+   my $r;
+   $r->{type} = "del_global_challenge";
+   
+   $r->{channel} = dec_U16 q||;
+   $r->{game} = dec_U16 q||;
+   $r;
+};
+$enc_server{del_global_challenge} = sub {
+   $data = "";
+   enc_U16 0x443b;
+   
+   enc_U16 defined $_[0]{channel} ? $_[0]{channel} : (q||);
+   enc_U16 defined $_[0]{game} ? $_[0]{game} : (q||);
    $data;
 };
 

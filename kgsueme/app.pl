@@ -80,7 +80,7 @@ sub login {
    # initialize new socket and connection
    #my $sock = new IO::Socket::INET PeerHost => "kgs.kiseido.com", PeerPort => "2379"
    my $sock = new IO::Socket::INET PeerHost => $ENV{KGSHOST} || "kgs.kiseido.com", PeerPort => "2379"
-      or die;
+      or die "connect: $!";
 
    $sock->blocking(1);
    $self->{conn}->handshake($sock);

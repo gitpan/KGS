@@ -22,6 +22,8 @@ sub play {
    if (fork == 0) {
       if (my $audioserver = new Audio::Play (1)) {
          $audioserver->play ($sound{$sound});
+         $audioserver->flush;
+         undef $audioserver;
       }
       use POSIX ();
       POSIX::_exit(0);

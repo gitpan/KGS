@@ -69,11 +69,11 @@ while (my $l = $l->accept) {
 
                      $prot->{generator}->set_server_seed ($msg->{name}) if $msg->{type} eq "login";
 
-                     print "\npackage type received from CLIENT:\n";
+                     print "\npacket type $msg->{type} received from CLIENT:\n";
                      open XTYPE, "|xtype"; printf XTYPE "%16d%s", (length $pkt), $pkt; close XTYPE;
                      print KGS::Listener::Debug::dumpval $msg;
                   } else {
-                     print "\007\n\nUNKNOWN PACKAGE TYPE RECEIVED FROM CLIENT:\n";
+                     print "\007\n\nUNKNOWN PACKET TYPE RECEIVED FROM CLIENT:\n";
                      open XTYPE, "|xtype"; printf XTYPE "%16d%s", (length $pkt), $pkt; close XTYPE;
                   }
 
@@ -107,7 +107,7 @@ use base KGS::Listener;
 sub inject {
    my ($self, $msg) = @_;
 
-   print "received msg from SERVER\n";
+   print "received packet type $msg->{type} from SERVER\n";
    print KGS::Listener::Debug::dumpval $msg;
 }
 

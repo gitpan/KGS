@@ -23,7 +23,7 @@
 </head>
 <body>
 
-<h1>$Revision: 1.42 $</h1>
+<h1>$Revision: 1.48 $</h1>
 
 <h1>KGS Protocol Description</h1>
 
@@ -62,9 +62,10 @@
 
    <p>Primitive types are mostly integers (signed
    "<code>I</code>&lt;bits&gt;", unsigned "<code>U</code>&lt;bits&gt;"),
-   ascii strings ("<code>username</code>"), or zero-terminated
-   UCS2-Strings ("<code>STRING</code>"). Yes, I know java is supposed to
-   do UTF-16, but no implementation seems to care...</p>
+   ascii strings ("<code>username</code>"), zero- or non-terminated
+   UCS2-Strings ("<code>ZSTRING</code>" or "<code>STRING</code>"). Yes,
+   I know java is supposed to do UTF-16, but no implementation seems to
+   care...</p>
 
    <p>For the rest, go figure or bug me, <a href="mailto:pcg@goof.com">Marc Lehmann &lt;pcg@goof.com&gt;</a></p>
 
@@ -284,7 +285,7 @@
 
    <struct name="rules" class="KGS::Rules">
 
-      <p>This structure is used for challanges as well as in the special
+      <p>This structure is used for challenges as well as in the special
       TREE "subprotocol". It tightly encodes the game parameters.</p>
 
       <member name="ruleset" type="U8"/>
@@ -326,11 +327,6 @@
 
    <message type="0007" name="req_userinfo" src="client">
       <p>Request info about a certain user. Possible reply: <ref reply="userinfo"/></p>
-      <member name="name" type="username"/>
-   </message>
-
-   <message type="0007" name="req_userinfo" src="client">
-      <p>Request userinfo(?). unverified...</p>
       <member name="name" type="username"/>
    </message>
 
@@ -435,10 +431,15 @@
       <member name="b2" type="U8" value="255"/>
       <member name="b3" type="U8" value="255"/>
       <member name="group" type="U8" value="1"/>
-      <member name="name" type="STRING"/>
-      <member name="description" type="STRING"/>
+      <member name="name" type="ZSTRING"/>
+      <member name="description" type="ZSTRING"/>
       <member name="flags" type="U8"/>
       See ROOMFLAGs
+   </message>
+
+   <message type="031b" name="req_upd_rooms" src="client">
+      <p>Request a rooms update message for the given room.</p>
+      <member name="channel" type="U16"/>
    </message>
 
    <message type="0413" name="req_game_record" src="client">
@@ -482,6 +483,9 @@
       <p>The room where to start the new game</p>
       <member name="id" type="U16"/>
       <member name="gametype" type="U32"/>
+      <p>
+         0x200 == global open game list
+      </p>
       <member name="rules" type="rules"/>
       <p>When cloning a game, the rules are set up like this:
          count => 65535, ruleset => 0, time => 4294967295, timesys => 0, interval => 4294967295.
@@ -612,10 +616,22 @@
       <member name="name" type="username"/>
    </message>
 
+   <message type="442e" name="save_game" src="client">
+      <p>Is send when a game is closed and should be saved on the gamerecord.</p>
+
+      <member name="channel" type="U16"/>
+   </message>
+
    <message type="4433" name="req_result" src="client">
       I forgot.
 
       <member name="channel" type="U16"/>
+   </message>
+
+   <message type="4434" name="set_quiet" src="client">
+      <p>Sets (or clears) the quiet flag on a game.</p>
+      <member name="channel" type="U16"/>
+      <member name="quiet" type="U8"/>
    </message>
 
    <message type="4436" name="msg_game" src="client">
@@ -889,12 +905,12 @@
    <message type="001f" name="memo" src="server">
       Unclear. "Leave Message"?
       6 strings following.
-      <member name="s1" type="STRING"/>
-      <member name="s2" type="STRING"/>
-      <member name="s3" type="STRING"/>
-      <member name="s4" type="STRING"/>
-      <member name="s5" type="STRING"/>
-      <member name="s6" type="STRING"/>
+      <member name="s1" type="ZSTRING"/>
+      <member name="s2" type="ZSTRING"/>
+      <member name="s3" type="ZSTRING"/>
+      <member name="s4" type="ZSTRING"/>
+      <member name="s5" type="ZSTRING"/>
+      <member name="s6" type="ZSTRING"/>
    </message>
 
    <message type="0021" name="userpic" src="server">
@@ -974,6 +990,18 @@
 
    <message type="0421" name="error" src="server">
       <member name="message" type="CONSTANT" value='Sorry, this game is a private lesson. You will not be allowed to observe it.'/>
+   </message>
+
+   <!-- added recently -->
+   <message type="043a" name="add_global_challenge" src="server">
+      <p>
+         Adds or updates a global challenge (open game list).
+      </p>
+      <member name="channel" type="U16"/>
+      <p>
+         The room this game is associated with.
+      </p>
+      <member name="game" type="game"/>
    </message>
 
 <h3>Room messages</h3>
@@ -1119,15 +1147,15 @@
       <member name="name" type="username"/>
    </message>
 
-   <message type="442f" name="new_game" src="client">
+   <message type="442f" name="new_game" src="server">
       <p>Notifies the client that a new game has been created. This
-      message is sent long *after* upd_observers etc. has been received.
-      *sigh*</p>
+      message is sent long *after* upd_games and upd_observers etc.
+      have been received. *sigh*</p>
 
       <member name="channel" type="U16"/>
-      <p>The enwly created game.</p>
+      <p>The newly created game.</p>
       <member name="id" type="U16"/>
-      <p>Probably the ID sent to the server in new_game.</p>
+      <p>The ID sent to the server in new_game.</p>
    </message>
 
    <message type="4433" name="req_result" src="server">
@@ -1136,12 +1164,21 @@
        # # recv_result(?)
    </message>
 
-   <message type="4434" name="unknown4434" src="server">
+   <message type="4434" name="set_quiet" src="server">
+      <p>Sets (or clears) the quiet flag on a game.</p>
       <member name="channel" type="U16"/>
-      <member name="b1" type="U8"/>
-      ?? !demonstration game??
+      <member name="quiet" type="U8"/>
    </message>
 
+   <message type="443b" name="del_global_challenge" src="server">
+      <p>
+         Remove a game from the global challenge list (open game list).
+      </p>
+      <member name="channel" type="U16"/>
+      <p>The game id to remove.</p>
+      <member name="game" type="U16"/>
+      <p>Probably the same. I suggest to use this id for no good reason.</p>
+   </message>
 </body>
 </html>
 

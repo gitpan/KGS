@@ -143,7 +143,7 @@ sub update {
 
    for (@$add, @$update) {
       my $owner = $_->owner;
-      if ($_->is_valid) {
+      if ($_->is_inprogress) {
          (delete $_->{model})->remove (delete $_->{iter}) if $_->{model} && $_->{model} != $m2;#d#
          $_->{model} = $m2;
          $m2->set ($_->{iter} ||= $m2->append,

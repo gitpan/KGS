@@ -44,6 +44,10 @@ use Glib::Object::Subclass
          return_type => undef, # void return
          param_types => [Glib::Int, Glib::Int, Glib::Int], # instance and data are automatic
       },
+      destroy        => sub {
+         $_[0]->signal_chain_from_overridden;
+         %{$_[0]} = ();
+      },
    };
 
 # marker types for each board position (ORed together)

@@ -7,8 +7,6 @@ use Compress::Zlib;
 use Time::HiRes;
 use Scalar::Util;
 
-use Convert::Scalar; #d#
-
 use KGS::Messages;
 
 my $KGSHOST = "kgs.kiseido.com";
@@ -17,7 +15,7 @@ my $SGFHOST = "216.93.172.124";
 
 our $NOW; # the time the last packet was received
 
-our $VERSION = "0.1";
+our $VERSION = "0.2";
 
 sub MSG_CHANNEL() { 0x4000 }
 
@@ -74,6 +72,8 @@ Format a message and send it to the server.
 
 sub send($@) {
    my $self = shift;
+
+   #use PApp::Util; print PApp::Util::dumpval [@_];#d#
 
    my $msg = $self->{generator}->enc_client (encode_msg @_);
 
@@ -198,9 +198,9 @@ sub unregister {
 
 sub _inject {
    my ($self, $msg) = @_;
-   #warn "inject(@_)\n" . KGS::Listener::Debug::dumpval([$msg]);#d#
    
    $msg->{NOW} = $NOW; # timestamps heissen bei mir "NOW"
+   #use PApp::Util; warn PApp::Util::dumpval $msg;#d#
 
    for my $type ("any", $msg->{type}, "$msg->{type}:$msg->{channel}") {
       for my $obj (values %{$self->{cb}{$type} || {}}) {
@@ -224,20 +224,29 @@ sub alloc_channel {
 
 package KGS::User;
 
-sub is_guest	{ $_[0]{flags} & 0x0001 }
-sub is_admin	{ $_[0]{flags} & 0x0002 }
-#                                0x0004   # never seen
-sub is_active	{ $_[0]{flags} & 0x0008 } # logged in(?)
-sub is_gone	{ $_[0]{flags} & 0x0010 }
-sub is_idle	{ $_[0]{flags} & 0x0020 }
-#                                0x0040 # no idea, seen on many users
-sub is_playing	{ $_[0]{flags} & 0x0080 }
-sub is_reliable	{ $_[0]{flags} & 0x0100 } # reliable ranking?
-sub is_ranked	{ $_[0]{flags} & 0x0200 }
-#                                0x0400 # no idea
-sub is_ranked2	{ $_[0]{flags} & 0x0800 } # very reliably ranked? *g*
-sub has_pic	{ $_[0]{flags} & 0x1000 }
-sub email_priv	{ $_[0]{flags} & 0x2000 }
+sub is_guest	{ $_[0]{flags} & 0x00001 }
+sub is_admin	{ $_[0]{flags} & 0x00002 }
+#                                0x00004   # never seen
+sub is_active	{ $_[0]{flags} & 0x00008 } # logged in(?)
+sub is_gone	{ $_[0]{flags} & 0x00010 }
+sub is_idle	{ $_[0]{flags} & 0x00020 }
+#                                0x00040 # no idea, seen on many users
+sub is_playing	{ $_[0]{flags} & 0x00080 }
+sub is_reliable	{ $_[0]{flags} & 0x00100 } # reliable ranking?
+sub is_ranked	{ $_[0]{flags} & 0x00200 }
+#                                0x00400 # no idea
+sub is_ranked2	{ $_[0]{flags} & 0x00800 } # very reliably ranked? *g*
+sub has_pic	{ $_[0]{flags} & 0x01000 }
+sub email_priv	{ $_[0]{flags} & 0x02000 }
+
+sub is_bot_1	{ $_[0]{flags} & 0x10000 } # set on bots
+sub is_bot_2	{ $_[0]{flags} & 0x20000 } # set on bots
+
+sub usertype    { ($_[0]{flags} >> 16) & 3 }
+# 0 == normal
+# 1 == robot (gtp-client)
+# 2 == teacher
+# 3 == ranked robot
 
 sub is_valid    { length $_[0]{name} }
 
@@ -272,8 +281,12 @@ sub flags_string {
    $r .= "P" if &is_playing;
    $r .= ":" if &is_ranked2;
 
-   $r .= sprintf "%04x", $_[0]{flags} & 0xffc400
-      if $_[0]{flags} & 0xffc400;
+   $r .= " (GTP)" if &usertype == 1;
+   $r .= " (TEACHER)" if &usertype == 2;
+   $r .= " (ROBOT)" if &usertype == 3;
+
+   $r .= sprintf "%04x", $_[0]{flags} & 0xfcc400
+      if $_[0]{flags} & 0xfcc400;
 
    $r;
 }
@@ -286,15 +299,15 @@ package KGS::Game;
 
 use KGS::Constants;
 
-sub is_saved     { $_[0]{saved} } # hmm... not a flag...
-sub is_scored    { $_[0]{flags} & 0x1 }
-sub is_adjourned { $_[0]{flags} & 0x2 }
+sub is_saved      { $_[0]{saved} } # hmm... not a flag...
+sub is_scored     { $_[0]{flags} & 0x1 }
+sub is_adjourned  { $_[0]{flags} & 0x2 }
 # there is more going on, one bit 0x4 and above(?)
 
-sub is_valid     { $_[0]{handicap} >= 0 } # maybe rename to "complete"? "started"? "has_board"? ;)
+sub is_inprogress { $_[0]{handicap} >= 0 } # maybe rename to "complete"? "started"? "has_board"? ;)
 
-sub is_active    {
-   &is_valid
+sub is_active     {
+   &is_inprogress
    && !&is_scored
    && !&is_adjourned
    && &type != GAMETYPE_DEMONSTRATION

@@ -22,7 +22,7 @@
 </head>
 <body>
 
-<h1>$Revision: 1.42 $</h1>
+<h1>$Revision: 1.48 $</h1>
 
 <h1>KGS Protocol Description</h1>
 
@@ -63,9 +63,10 @@
 
    <p>Primitive types are mostly integers (signed
    "<code>I</code>&lt;bits&gt;", unsigned "<code>U</code>&lt;bits&gt;"),
-   ascii strings ("<code>username</code>"), or zero-terminated
-   UCS2-Strings ("<code>STRING</code>"). Yes, I know java is supposed to
-   do UTF-16, but no implementation seems to care...</p>
+   ascii strings ("<code>username</code>"), zero- or non-terminated
+   UCS2-Strings ("<code>ZSTRING</code>" or "<code>STRING</code>"). Yes,
+   I know java is supposed to do UTF-16, but no implementation seems to
+   care...</p>
 
    <p>For the rest, go figure or bug me, <a href="mailto:pcg@goof.com">Marc Lehmann &lt;pcg@goof.com&gt;</a>
     </p>
@@ -847,7 +848,7 @@
       CLASS: KGS::Rules<br />
     <p>
 
-      <p>This structure is used for challanges as well as in the special
+      <p>This structure is used for challenges as well as in the special
       TREE "subprotocol". It tightly encodes the game parameters.</p>
     </p>
     <table border="1" width="100%">
@@ -1124,35 +1125,6 @@
    NUMERIC TYPE (hex): 0007<p>
       <p>Request info about a certain user. Possible reply: <a href="#S0008">userinfo(0008)</a>
       </p>
-    </p>
-    <table border="1" width="100%">
-      <tr>
-        <th width="10%">NAME</th>
-        <th width="8%">TYPE</th>
-        <th width="4%">VALUE</th>
-        <th>DESCRIPTION</th>
-        <th width="10%">GUARD</th>
-      </tr>
-      <tr>
-        <td>name</td>
-        <td>username</td>
-        <td> </td>
-        <td>
-   
-            
-       </td>
-        <td>
-          <b></b> 
-            
-       </td>
-      </tr>
-    </table>
-
-   <h4>
-      <a name="C0007"></a>ORIGIN: CLIENT;
-      MESSAGE: req_userinfo</h4>
-   NUMERIC TYPE (hex): 0007<p>
-      <p>Request userinfo(?). unverified...</p>
     </p>
     <table border="1" width="100%">
       <tr>
@@ -1783,7 +1755,7 @@
       </tr>
       <tr>
         <td>name</td>
-        <td>STRING</td>
+        <td>ZSTRING</td>
         <td> </td>
         <td>
       
@@ -1796,7 +1768,7 @@
       </tr>
       <tr>
         <td>description</td>
-        <td>STRING</td>
+        <td>ZSTRING</td>
         <td> </td>
         <td>
       
@@ -1813,6 +1785,35 @@
         <td> </td>
         <td>
       See ROOMFLAGs
+   
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>
+      <a name="C031b"></a>ORIGIN: CLIENT;
+      MESSAGE: req_upd_rooms</h4>
+   NUMERIC TYPE (hex): 031b<p>
+      <p>Request a rooms update message for the given room.</p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>channel</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
    
             
        </td>
@@ -2853,6 +2854,35 @@
     </table>
 
    <h4>
+      <a name="C442e"></a>ORIGIN: CLIENT;
+      MESSAGE: save_game</h4>
+   NUMERIC TYPE (hex): 442e<p>
+      <p>Is send when a game is closed and should be saved on the gamerecord.</p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>channel</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+   
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>
       <a name="C4433"></a>ORIGIN: CLIENT;
       MESSAGE: req_result</h4>
    NUMERIC TYPE (hex): 4433<p>
@@ -2870,6 +2900,48 @@
       <tr>
         <td>channel</td>
         <td>U16</td>
+        <td> </td>
+        <td>
+   
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <h4>
+      <a name="C4434"></a>ORIGIN: CLIENT;
+      MESSAGE: set_quiet</h4>
+   NUMERIC TYPE (hex): 4434<p>
+      <p>Sets (or clears) the quiet flag on a game.</p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>channel</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>quiet</td>
+        <td>U8</td>
         <td> </td>
         <td>
    
@@ -4946,7 +5018,7 @@
       </tr>
       <tr>
         <td>s1</td>
-        <td>STRING</td>
+        <td>ZSTRING</td>
         <td> </td>
         <td>
       
@@ -4959,7 +5031,7 @@
       </tr>
       <tr>
         <td>s2</td>
-        <td>STRING</td>
+        <td>ZSTRING</td>
         <td> </td>
         <td>
       
@@ -4972,7 +5044,7 @@
       </tr>
       <tr>
         <td>s3</td>
-        <td>STRING</td>
+        <td>ZSTRING</td>
         <td> </td>
         <td>
       
@@ -4985,7 +5057,7 @@
       </tr>
       <tr>
         <td>s4</td>
-        <td>STRING</td>
+        <td>ZSTRING</td>
         <td> </td>
         <td>
       
@@ -4998,7 +5070,7 @@
       </tr>
       <tr>
         <td>s5</td>
-        <td>STRING</td>
+        <td>ZSTRING</td>
         <td> </td>
         <td>
       
@@ -5011,7 +5083,7 @@
       </tr>
       <tr>
         <td>s6</td>
-        <td>STRING</td>
+        <td>ZSTRING</td>
         <td> </td>
         <td>
    
@@ -5566,6 +5638,51 @@
         <td>message</td>
         <td>CONSTANT</td>
         <td>Sorry, this game is a private lesson. You will not be allowed to observe it. </td>
+        <td>
+   
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
+
+   <!-- added recently -->
+   <h4>
+      <a name="S043a"></a>ORIGIN: SERVER;
+      MESSAGE: add_global_challenge</h4>
+   NUMERIC TYPE (hex): 043a<p>
+      <p>
+         Adds or updates a global challenge (open game list).
+      </p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>channel</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>game</td>
+        <td>game</td>
+        <td> </td>
         <td>
    
             
@@ -6637,12 +6754,12 @@
     </table>
 
    <h4>
-      <a name="C442f"></a>ORIGIN: CLIENT;
+      <a name="S442f"></a>ORIGIN: SERVER;
       MESSAGE: new_game</h4>
    NUMERIC TYPE (hex): 442f<p>
       <p>Notifies the client that a new game has been created. This
-      message is sent long *after* upd_observers etc. has been received.
-      *sigh*</p>
+      message is sent long *after* upd_games and upd_observers etc.
+      have been received. *sigh*</p>
     </p>
     <table border="1" width="100%">
       <tr>
@@ -6712,9 +6829,10 @@
 
    <h4>
       <a name="S4434"></a>ORIGIN: SERVER;
-      MESSAGE: unknown4434</h4>
+      MESSAGE: set_quiet</h4>
    NUMERIC TYPE (hex): 4434<p>
-      </p>
+      <p>Sets (or clears) the quiet flag on a game.</p>
+    </p>
     <table border="1" width="100%">
       <tr>
         <th width="10%">NAME</th>
@@ -6737,11 +6855,10 @@
        </td>
       </tr>
       <tr>
-        <td>b1</td>
+        <td>quiet</td>
         <td>U8</td>
         <td> </td>
         <td>
-      ?? !demonstration game??
    
             
        </td>
@@ -6752,5 +6869,48 @@
       </tr>
     </table>
 
+   <h4>
+      <a name="S443b"></a>ORIGIN: SERVER;
+      MESSAGE: del_global_challenge</h4>
+   NUMERIC TYPE (hex): 443b<p>
+      <p>
+         Remove a game from the global challenge list (open game list).
+      </p>
+    </p>
+    <table border="1" width="100%">
+      <tr>
+        <th width="10%">NAME</th>
+        <th width="8%">TYPE</th>
+        <th width="4%">VALUE</th>
+        <th>DESCRIPTION</th>
+        <th width="10%">GUARD</th>
+      </tr>
+      <tr>
+        <td>channel</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+      <tr>
+        <td>game</td>
+        <td>U16</td>
+        <td> </td>
+        <td>
+      
+            
+       </td>
+        <td>
+          <b></b> 
+            
+       </td>
+      </tr>
+    </table>
 </body>
 </html>

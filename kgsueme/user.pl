@@ -117,6 +117,9 @@ sub event_usergraph {
 sub event_msg {
    my ($self, $name, $message) = @_;
 
+   $message =~ s/&/&amp;/g;
+   $message =~ s/</&lt;/g;
+
    $self->{chat}->append_text ("\n<user>$name</user>: $message");
 }
 

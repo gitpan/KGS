@@ -1,12 +1,14 @@
+# http://module-build.sourceforge.net/META-spec.html
 #XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
 name:         KGS
-version:      0.1
+version:      0.2
 version_from: lib/KGS/Protocol.pm
 installdirs:  site
 requires:
-    Audio::Play:                   0
-    Gtk2:                          0.9
     Audio::Data:                   0
+    Audio::Play:                   0
+    Convert::Scalar:               0
+    Gtk2:                          0.9
 
 distribution_type: module
-generated_by: ExtUtils::MakeMaker version 6.10_07
+generated_by: ExtUtils::MakeMaker version 6.21

@@ -69,11 +69,13 @@ sub dec_DATA {
    (my ($r), $data) = ($data, ""); $r;
 }
 
-sub dec_STRING {
+sub dec_ZSTRING {
    $data =~ s/^((?:..)*?)(?:\x00\x00|\Z)//s;
    # use Encode...
    join "", map chr, unpack "v*", $1;
 }
+
+BEGIN { *dec_STRING = \&dec_ZSTRING };
 
 sub dec_CONSTANT {
    $_[0];
@@ -121,6 +123,11 @@ sub enc_I32 {
 sub enc_DATA {
    # a dream!
    $data .= $_[0];
+}
+
+sub enc_ZSTRING {
+   # should use encode for speed and clarity ;)
+   $data .= pack "v*", (map ord, split //, $_[0]), 0;
 }
 
 sub enc_STRING {
@@ -180,13 +187,13 @@ sub dec_TREE {
          push @r, [score => dec_U8, dec_score1000];
 
       } elsif ($type == 29) {
-         push @r, [type_29 => dec_STRING];
+         push @r, [type_29 => dec_ZSTRING];
          warn "TYPE 29 $r[-1][1]\007 PLEASE REPORT";#d#
          die;
 
       } elsif ($type == 28) {
          # move number, only in variations it seems. oh my.
-         push @r, [movenum => dec_STRING];
+         push @r, [movenum => dec_ZSTRING];
 
       } elsif ($type == 25) {
          push @r, [result => dec_result];
@@ -195,7 +202,7 @@ sub dec_TREE {
          push @r, [mark => $add, MARK_GRAYED, dec_U8, dec_U8];
 
       } elsif ($type == 22) {
-         push @r, [mark => $add, (&dec_U8 ? MARK_SMALL_W : MARK_SMALL_B), dec_U8, dec_U8];
+         push @r, [mark => $add, dec_U8() ? MARK_SMALL_W : MARK_SMALL_B, dec_U8, dec_U8];
 
       } elsif ($type == 21) {
          push @r, [mark => $add, MARK_CIRCLE, dec_U8, dec_U8];
@@ -207,16 +214,16 @@ sub dec_TREE {
          push @r, [mark => $add, MARK_TRIANGLE, dec_U8, dec_U8];
 
       } elsif ($type == 18) {
-         push @r, [mark => $add, MARK_LABEL, dec_U8, dec_U8, dec_STRING];
+         push @r, [mark => $add, MARK_LABEL, dec_U8, dec_U8, dec_ZSTRING];
 
       } elsif ($type == 17) {
          push @r, [set_timer => (dec_U8, dec_U32, dec_time)[0,2,1]];
 
       } elsif ($type == 16) {
-         push @r, [set_stone => $add, dec_U8, dec_U8, dec_U8];
+         push @r, [set_stone => dec_U8, dec_U8, dec_U8];
 
       } elsif ($type == 14) {
-         push @r, [move => $add, dec_U8, dec_U8, dec_U8];
+         push @r, [move => dec_U8, dec_U8, dec_U8];
 
       } elsif (($type >= 4 && $type <= 9)
                || ($type >= 11 && $type <= 13)
@@ -233,13 +240,13 @@ sub dec_TREE {
               12 => "unknown_comment12",
               13 => "unknown_comment13",
               24 => "comment",
-               })->{$type} => dec_STRING];
+               })->{$type} => dec_ZSTRING];
 
       } elsif ($type == 3) {
          push @r, [rank => dec_U8, dec_U32];
 
       } elsif ($type == 2) {
-         push @r, [player => dec_U8, dec_STRING];
+         push @r, [player => dec_U8, dec_ZSTRING];
 
       } elsif ($type == 0) {
          # as usual, wms finds yet another way to duplicate code... oh well, what a mess.
@@ -278,29 +285,48 @@ sub enc_TREE {
 
       } elsif ($type eq "movenum") {
          enc_U8 28;
-         enc_STRING $arg[0];
+         enc_ZSTRING $arg[0];
 
       } elsif ($type eq "set_stone") {
-         enc_U8 16 + ($arg[0] && 128);
+         enc_U8 16;
+         enc_U8 $arg[0];
          enc_U8 $arg[1];
          enc_U8 $arg[2];
-         enc_U8 $arg[3];
 
       } elsif ($type eq "move") {
-         enc_U8 14 + ($arg[0] && 128);
+         enc_U8 14;
+         enc_U8 $arg[0];
          enc_U8 $arg[1];
          enc_U8 $arg[2];
-         enc_U8 $arg[3];
 
       } elsif ($type eq "comment") {
          enc_U8 24;
-         enc_STRING $arg[0];
+         enc_ZSTRING $arg[0];
+
+      } elsif ($type eq "mark") {
+         my $op = ({
+                  &MARK_GRAYED   => 23,
+                  &MARK_SMALL_B  => 22,
+                  &MARK_SMALL_W  => 22,
+                  &MARK_CIRCLE   => 21,
+                  &MARK_SQUARE   => 20,
+                  &MARK_TRIANGLE => 19,
+                  &MARK_LABEL    => 18,
+                })->{$arg[1]};
+
+         enc_U8 $op + ($arg[0] ? 0 : 128);
+         enc_U8 $arg[1] == MARK_SMALL_W if $op == 22;
+         enc_U8 $arg[2];
+         enc_U8 $arg[3];
+
+         enc_ZSTRING $arg[4] if $op == 18;
 
       } else {
          warn "unable to encode tree node type $type\n";
       }
    }
-}
+};
+
 ]]>
 
 #############################################################################

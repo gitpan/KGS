@@ -135,6 +135,7 @@ sub INTERVAL_GAMEUPDATES   () { 60 } # request game list updates this often (sec
    3 => "Lessons",
    4 => "Tournaments",
    5 => "Social",
+   6 => "National",
 );
 
 # misplaced here...

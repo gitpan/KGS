@@ -1,34 +1,31 @@
-uuh...
+Standard perl module building:
 
-Installation is not yet possible (too lazy to write a Makefile.PL, also,
-where should I put kgsmue/*.pl?), but running is.
+   perl Makefile.PL
+   make
+   make install
 
 Running kgsueme example client:
 
-  make rundemo
+  kgsueme
 
 Running the protocol tracer app (run it and connect to localhost instead
 of kgs.kiseido.com):
 
-  make trace
+  kgstrace
 
 For the KGS modules, all you need is below the lib/ directory. It should not
-need any special modules. A Makefile.PL for that could be wirtten trivially, but...
+need any special modules.
+
+gtp-controller and kgstrace need these modules:
+
+   Event
 
 The sample client needs these (nonstandard) modules:
 
-Audio::Data
-Audio::Play
-Gtk2
+   Audio::Data
+   Audio::Play
+   Gtk2
 
 For Gtk2, I used the gtk-xs version (now on CPAN, so fetch it there).
-
-You can also use the cvs version:
-
-    cvs -z3 -d:pserver:anonymous@cvs.sourceforge.net:/cvsroot/gtk2-perl login
-    cvs -z3 -d:pserver:anonymous@cvs.sourceforge.net:/cvsroot/gtk2-perl co gtk2-perl-xs
-    # install gtk2-perl-xs/Glib module
-    # install gtk2-perl-xs/Gtk2 module
-
 
 

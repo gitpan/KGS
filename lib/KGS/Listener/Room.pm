@@ -1,3 +1,37 @@
+=head1 NAME
+
+KGS::Listener::Room - handle room-related messages for you.
+
+=head1 SYNOPSIS
+
+  use base KGS::Listener::Room;
+
+  # maybe overwrite new
+  sub new { ... }
+
+  sub event_update_games {
+     ...
+  }
+
+  sub event_roominfo {
+     ...
+  }
+
+=head1 DESCRIPTION
+
+None yet. Please see L<KGS::Listener> and L<KGS::Listener::Channel>.
+
+Automatically listens and handles the following messages for you and calls
+event methods:
+
+  join_room: part_room: upd_games: desc_room: msg_room: upd_game del_game
+
+=head2 METHODS
+
+=over 4
+
+=cut
+
 package KGS::Listener::Room;
 
 use base KGS::Listener::Channel;
@@ -9,27 +43,62 @@ sub listen {
                            upd_game del_game));
 }
 
+=item $room->join
+
+Uses $room->{channel} and $room->{conn}{name} to join the channel.
+
+See C<event_join>.
+
+=cut
+
 sub join {
    my ($self) = @_;
    $self->{games} = {};
    $self->SUPER::join("join_room");
 }
 
+=item $room->part
+
+Departs from the room. See C<event_part>.
+
+=cut
+
 sub part {
    my ($self) = @_;
    $self->SUPER::part("part_room");
 }
+
+=item $room->say ($msg)
+
+Utter something in the room.
+
+=cut
 
 sub say {
    my ($self, $msg) = @_;
    $self->send(msg_room => channel => $self->{channel}, name => $self->{conn}{name}, message => $msg);
 }
 
+=item $room->req_roominfo
+
+Request a room description. See C<event_roominfo>.
+
+=cut
+
 sub req_roominfo {
    my ($self) = @_;
 
    $self->send(req_desc => channel => $self->{channel});
 }
+
+=item $room->req_games
+
+Request a non-incremental update of the game list. Should be called every
+minute or so.
+
+See C<event_update_games>.
+
+=cut
 
 sub req_games {
    my ($self) = @_;
@@ -97,10 +166,23 @@ sub inject_desc_room {
    $self->event_update_roominfo;
 }
 
+=item $room->event_join
+
+Called when the user successfully joined the room. This I<can> be called late,
+after messages for this room have already been received.
+
+=cut
+
 sub event_join {
    my ($self) = @_;
    $self->SUPER::event_join;
 }
+
+=item $room->event_part
+
+Called when the user left the room.
+
+=cut
 
 sub event_part {
    my ($self) = @_;
@@ -108,17 +190,39 @@ sub event_part {
    $self->event_update_games ([], [], [values %{delete $self->{games}}]);
 }
 
-=item $game->event_update_games ($add, $update, $remove)
+=item $room->event_update_games ($add, $update, $remove)
+
+Called whenever the game list is updated, either incrementally or on
+request. The three parameters are arrayrefs with lists of <KGS::Game>s
+that have been newly added (C<$add>), existed but got parameters
+(movecount, status etc.) updated (C<$update>) or have been removed
+C<$remove>.
+
+You do not need to use these arguments, as the list of games is always
+kept up-to-date in C<< $room->{games}{id}{KGS::Game} >>, so you can just
+use this hash instead.
 
 =cut
 
 sub event_update_games { }
 
-=item $game->event_update_roominfo
+=item $room->event_update_roominfo
+
+Called whenever the room info gets updated, either on request or server-initiated.
+
+The owner name can be accessed as C<< $room->{owner} >>, while the
+descriptive text is stored in C<< $room->{description} >>.
+
+   $self->{owner}       = $msg->{owner};
+   $self->{description} = $msg->{description};
 
 =cut
 
 sub event_update_roominfo { }
+
+=back
+
+=cut
 
 1;
 

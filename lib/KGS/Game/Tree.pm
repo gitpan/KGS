@@ -4,17 +4,6 @@ use Gtk2::GoBoard::Constants;
 
 use KGS::Constants;
 
-# _should_ be unified, but the two types are slightly different
-# (this really looks like a grown, as opposed to designed, protocol)
-# despite the claim of "innovation" etc...
-my %marker_type = (
-   triangle => MARK_TRIANGLE,
-   square   => MARK_SQUARE,
-   circle   => MARK_CIRCLE,
-   small_b  => MARK_SMALL_B,
-   small_w  => MARK_SMALL_W,
-);
-
 # exclusion masks... the bit on the left excludes (removes) the ones on the right
 my %exclude_type = (
    &MARK_TRIANGLE => MARK_SQUARE | MARK_TRIANGLE | MARK_CIRCLE | MARK_LABEL,
@@ -24,8 +13,8 @@ my %exclude_type = (
    &MARK_SMALL_B  => MARK_SMALL_B | MARK_SMALL_W |                   MARK_MOVE,
    &MARK_SMALL_W  => MARK_SMALL_B | MARK_SMALL_W |                   MARK_MOVE,
    &MARK_GRAYED   =>                                                 MARK_MOVE | MARK_GRAYED,
-   &MARK_B        =>                               MARK_B | MARK_W | MARK_MOVE,
-   &MARK_W        =>                               MARK_B | MARK_W | MARK_MOVE,
+   &MARK_B        =>                               MARK_B | MARK_W | MARK_MOVE | MARK_GRAYED, #d# was !MARK_GRAYED here
+   &MARK_W        =>                               MARK_B | MARK_W | MARK_MOVE | MARK_GRAYED, #d# was !MARK_GRAYED here
 );
 
 sub init_tree {
@@ -95,19 +84,19 @@ sub update_tree {
          if ($type eq "move") {
             $self->{lastmove_time}   = $KGS::Protocol::NOW;
             $self->{lastmove_colour} = $arg[1];
-            $up_move = $arg[2] == 255 if $self->{loaded};
+            $up_move = $arg[1] == 255 if $self->{loaded};
          }
 
-         if ($arg[2] < 255) {
-            my $ref = $node->{"$arg[2],$arg[3]"} ||= [];
+         if ($arg[1] < 255) {
+            my $ref = $node->{"$arg[1],$arg[2]"} ||= [];
 
-            my $bit = $arg[1] == COLOUR_BLACK ? MARK_B
-                    : $arg[1] == COLOUR_WHITE ? MARK_W
-                                       : 0;
+            my $bit = $arg[0] == COLOUR_BLACK ? MARK_B
+                    : $arg[0] == COLOUR_WHITE ? MARK_W
+                    : 0;
 
-            $ref->[0] &= ~$exclude_type{$bit};
+            $ref->[0] &= ~$exclude_type{$bit || MARK_B};
             $ref->[0] |= $bit | ($type eq "move" ? MARK_MOVE : 0);
-            $ref->[1] |= $exclude_type{$bit};
+            $ref->[1] |= $exclude_type{$bit || MARK_B};
          } else {
             warn "PLEASE REPORT: pass coordinates but type is $type" if $type ne "move";#d#
 

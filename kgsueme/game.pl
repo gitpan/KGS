@@ -437,14 +437,12 @@ sub event_update_game {
 
    # show board
    
-   if ($self->is_valid) {
-      #D# TODO: check wether already inside, or already removed!!!
-      $self->{left}->add ($self->{boardbox});
-      $self->{left}->remove ($self->{challenge}->widget) if $self->{challenge};
+   if ($self->is_inprogress) {
+      $self->{left}->remove ($self->{challenge}->widget) if $self->{challenge} && $self->{boardbox}->parent;
+      $self->{left}->add ($self->{boardbox}) unless $self->{boardbox}->parent;
    } else {
-      #D# TODO: check wether already inside, or already removed!!!
-      $self->{left}->add ($self->{challenge}->widget);
-      $self->{left}->remove ($self->{boardbox});
+      $self->{left}->remove ($self->{boardbox}) if $self->{boardbox}->parent;
+      $self->{left}->add ($self->{challenge}->widget) unless $self->{challenge}->widget->parent;
    }
    $self->{left}->show_all;
 
@@ -455,18 +453,19 @@ sub event_update_game {
    $ga[0] = "\nType: " . (util::toxml $gametype{$self->type})
             . " (" . (util::toxml $gameopt{$self->option}) . ")";
    $ga[1] = "\nFlags:";
-   $ga[1] .= " valid"     if $self->is_valid;
+   $ga[1] .= " started"   if $self->is_inprogress;
    $ga[1] .= " adjourned" if $self->is_adjourned;
    $ga[1] .= " scored"    if $self->is_scored;
    $ga[1] .= " saved"     if $self->is_saved;
 
-   $ga[2] = "\nOwner: <user>" . (util::toxml $self->{user3}->as_string) . "</user>" if $self->{user3}->is_valid;
+   $ga[2] = "\nOwner: <user>" . (util::toxml $self->{user3}->as_string) . "</user>"
+      if $self->{user3}->is_inprogress;
 
    $ga[3] = "\nPlayers: <user>" . (util::toxml $self->{user2}->as_string) . "</user>"
             . " vs. <user>" . (util::toxml $self->{user1}->as_string) . "</user>"
-      if $self->is_valid;
+      if $self->is_inprogress;
 
-   if ($self->is_valid) {
+   if ($self->is_inprogress) {
       $ga[4] = "\nHandicap: " . $self->{handicap};
       $ga[5] = "\nKomi: " . $self->{komi};
       $ga[6] = "\nSize: " . $self->size_string;
@@ -510,7 +509,7 @@ sub event_update_rules {
       $text .= util::format_time $rules->{time};
       $text .= " ABS";
    } elsif ($rules->{timesys} == TIMESYS_BYO_YOMI) {
-      $text .= util::format_time $rules->{time} - $rules->{interval} * $rules->{count};
+      $text .= util::format_time $rules->{time};
       $text .= sprintf " + %s (%d) BY", util::format_time $rules->{interval}, $rules->{count};
    } elsif ($rules->{timesys} == TIMESYS_CANADIAN) {
       $text .= util::format_time $rules->{time};

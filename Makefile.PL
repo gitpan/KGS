@@ -30,6 +30,7 @@ WriteMakefile(
 	            SUFFIX	=> '.gz',
 	           },
     PREREQ_PM	=> {
+                    Convert::Scalar	=> 0,
     		    Gtk2		=> 0.90,
                     Audio::Data		=> 0,
                     Audio::Play		=> 0,
