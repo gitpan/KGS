@@ -66,13 +66,16 @@ sounds/move.wav
 sounds/pass
 sounds/resign
 sounds/resign.wav
+sounds/outoftime
+sounds/outoftime.wav
 sounds/ring
 sounds/ring.wav
 sounds/user_unknown
 sounds/user_unknown.wav
 sounds/warning
 sounds/warning.wav
-sounds/outoftime
+sounds/info
+sounds/info.wav
 
 lib/Gtk2/GoBoard.pm
 lib/Gtk2/GoBoard/Constants.pm

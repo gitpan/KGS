@@ -5,7 +5,7 @@ use KGS::Constants;
 my %sound;
 $SIG{CHLD} = 'IGNORE';
 
-for (qw(alarm warning move pass ring connect user_unknown gamestart resign outoftime)) {
+for (qw(alarm warning info move pass ring connect user_unknown gamestart resign outoftime)) {
    my $path = KGS::Constants::findfile "KGS/kgsueme/sounds/$_";
 
    open my $snd, "<", $path

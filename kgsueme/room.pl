@@ -37,7 +37,7 @@ sub new {
 
    $hbox->pack_start ((my $vbox = new Gtk2::VBox), 0, 1, 0);
 
-   $vbox->pack_start ((my $button = new_with_label Gtk2::Button "Close"), 0, 1, 0);
+   $vbox->pack_start ((my $button = new_with_label Gtk2::Button "Leave"), 0, 1, 0);
    $button->signal_connect (clicked => sub { $self->part });
    
    $vbox->pack_start ((my $button = new_with_label Gtk2::Button "New Game"), 0, 1, 0);

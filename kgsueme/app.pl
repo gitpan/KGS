@@ -75,6 +75,7 @@ sub new {
    $vpane->pack1 ($self->{gamelist}, 1, 1);
 
    $self->{rooms} = new Gtk2::Notebook;
+   $self->{rooms}->set (enable_popup => 1, scrollable => 1);
 
    $vpane->pack2 ($self->{rooms}, 1, 1);
 
@@ -150,6 +151,7 @@ sub inject_msg_chat {
    if ((lc $msg->{name2}) eq (lc $self->{name})) {
       unless ($self->{user}{lc $msg->{name}}) {
          $self->open_user (name => $msg->{name})->inject ($msg);
+         sound::play 2, "ring";
       }
    }
 }

@@ -359,7 +359,7 @@ sub update_cursor {
 
    if ($self->{teacher} eq $self->{app}{conn}) {
       #TODO# # teaching mode not implemented
-      $self->{button_pass}->set (label => "Pass", sensitive => 1, visible => 1);
+      $self->{button_pass}->set (label => "Pass", visible => 1, sensitive => 1);
       $self->{button_undo}->hide;
       $self->{button_resign}->hide;
       $self->{board}->set (cursor => undef);
@@ -371,7 +371,7 @@ sub update_cursor {
 
       if ($self->{cur_board}{score}) {
          # during scoring
-         $self->{button_pass}->set (label => "Done", sensitive => 1, visible => 1);
+         $self->{button_pass}->set (label => "Done", visible => 1, sensitive => 1);
          $self->{board}->set (cursor => sub {
             $_[0] & (MARK_B | MARK_W)
                ? $_[0] ^ MARK_GRAYED
@@ -393,7 +393,7 @@ sub update_cursor {
 
       } elsif ($self->{colour} == $self->{whosemove}) {
          # normal move
-         $self->{button_pass}->set (label => "Pass", sensitive => 1, visible => 1);
+         $self->{button_pass}->set (label => "Pass", visible => 1, sensitive => 1);
          $self->{board}->set (cursor => sub {
             # if is_valid_move oder so#TODO#
             $_[0] & (MARK_B | MARK_W)
@@ -458,7 +458,7 @@ sub update_board {
       if ($self->{curnode}{move} < $self->{handicap}) {
          $self->{whosemove} = COLOUR_BLACK;
       } elsif ($self->{curnode}{move} == $self->{handicap}) {
-         $self->{whosemove} = COLOUR_WHITE;
+         $self->{whosemove} = $self->{handicap} ? COLOUR_WHITE : COLOUR_BLACK;
       } else {
          $self->{whosemove} = 1 - $self->{cur_board}{last};
       }
@@ -573,6 +573,7 @@ sub event_part {
 
 sub event_move {
    my ($self, $pass) = @_;
+
    sound::play 1, $pass ? "pass" : "move";
 }
 
@@ -687,7 +688,6 @@ sub event_update_rules {
    }
 
    sound::play 3, "gamestart";
-
    $self->{rules_inlay}->refresh;
 }
 
@@ -715,9 +715,19 @@ sub event_done {
    my ($self) = @_;
 
    if ($self->{done}[1 - $self->{colour}] && !$self->{done}[$self->{colour}]) {
-      $self->{chat}->append_text ("\n<infoblock><header>Done</header>"
-                                  . "\nYour opponent pressed done.");
+      sound::play 2, "info" unless $inlay->{count};
+      $self->{chat}->append_text ("\n<infoblock><header>Press Done</header>"
+                                  . "\nYour opponent pressed done. Now it's up to you.");
    }
+   if ($self->{doneid} & 0x80000000) {
+      sound::play 2, "info" unless $inlay->{count};
+      $self->{chat}->append_text ("\n<infoblock><header>Press Done Again</header>"
+                                  . "\nThe board has changed.");
+   }
+
+   $self->{button_pass}->sensitive (!$self->{done}[$self->{colour}]);
+
+   $self->{chat}->set_end;
 }
 
 sub inject_final_result {
@@ -748,7 +758,7 @@ sub inject_req_undo {
    my $inlay = $self->{undo_inlay} ||= $self->{chat}->new_inlay;
    return if $inlay->{ignore};
 
-   sound::play 3, "warning" unless $inlay->{count};
+   sound::play 2, "warning" unless $inlay->{count};
    $inlay->{count}++;
 
    $inlay->clear;
@@ -769,7 +779,12 @@ sub inject_req_undo {
 sub inject_new_game {
    my ($self, $msg) = @_;
 
-   $self->{chat}->append_text ("\n<header>ACK from server ($msg->{cid} == $self->{cid})</header>");
+   if ($msg->{cid} != $self->{cid}) {
+      $self->part;
+      warn "ERROR: challenge id mismatch, PLEASE REPORT, especially the circumstances (many games open? etc..)\n";#d#
+   }
+
+   $self->{chat}->append_text ("\n<header>Game successfully created on server.</header>");
    delete $self->{cid};
 }
 
@@ -952,6 +967,8 @@ sub event_challenge {
    my $opponent = $as_black ? $info->{white} : $info->{black};
 
    my $id = $opponent->{name};
+
+   sound::play 2, "info";
 
    $self->{challenge}{$id} = $info;
    $self->{challenge}{$id}{inlay} = $self->{chat}->new_switchable_inlay (

@@ -15,7 +15,7 @@ my $SGFHOST = "216.93.172.124";
 
 our $NOW; # the time the last packet was received
 
-our $VERSION = "0.4";
+our $VERSION = "0.9";
 
 sub MSG_CHANNEL() { 0x4000 }
 

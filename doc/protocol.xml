@@ -23,7 +23,7 @@
 </head>
 <body>
 
-<h1>$Revision: 1.68 $</h1>
+<h1>$Revision: 1.69 $</h1>
 
 <h1>KGS Protocol Description</h1>
 
@@ -583,7 +583,7 @@
       <p>Sent by the client to mark the game as done.</p>
       <member name="channel" type="U16"/>
       <member name="id" type="U32"/>
-      <p>Probably some ID field to make sure that the client responds to the correct done click.</p>
+      <p>An id field (start at one please) to make sure that the client responds to the correct done click.</p>
    </message>
 
    <message type="440c" name="claim_win" src="client">
@@ -1169,8 +1169,8 @@
       <p>Send by the server when one of the players sends a done.</p>
       <member name="channel" type="U16"/>
       <member name="id" type="U32"/>
-      <p>Probably some ID field to make sure that the client responds to the correct done click.</p>
-      <p>The high bit has some function I don't know. It must be cleared when replying.</p>
+      <p>An id field to make sure that the client responds to the correct done click.</p>
+      <p>The high bit has the "please press done again" warning function, i.e. if set, opponent has changed board.</p>
       <member name="black" type="flag"/>
       <member name="white" type="flag"/>
    </message>

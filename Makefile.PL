@@ -84,10 +84,11 @@ WriteMakefile(
        'sounds/move'			=> '$(INST_LIBDIR)/KGS/kgsueme/sounds/move',
        'sounds/pass'			=> '$(INST_LIBDIR)/KGS/kgsueme/sounds/pass',
        'sounds/resign'			=> '$(INST_LIBDIR)/KGS/kgsueme/sounds/resign',
+       'sounds/outoftime'		=> '$(INST_LIBDIR)/KGS/kgsueme/sounds/outoftime',
        'sounds/ring'			=> '$(INST_LIBDIR)/KGS/kgsueme/sounds/ring',
        'sounds/user_unknown'		=> '$(INST_LIBDIR)/KGS/kgsueme/sounds/user_unknown',
        'sounds/warning'			=> '$(INST_LIBDIR)/KGS/kgsueme/sounds/warning',
-       'sounds/outoftime'		=> '$(INST_LIBDIR)/KGS/kgsueme/sounds/outoftime',
+       'sounds/info'			=> '$(INST_LIBDIR)/KGS/kgsueme/sounds/info',
 
        'kgsueme/app.pl'			=> '$(INST_LIBDIR)/KGS/kgsueme/app.pl',
        'kgsueme/chat.pl'		=> '$(INST_LIBDIR)/KGS/kgsueme/chat.pl',

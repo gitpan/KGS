@@ -1,5 +1,12 @@
 Revision history for Perl extension KGS.
 
+0.9  Mon May 31 05:06:39 CEST 2004
+	- played a few test games, fixed the "Done" problem
+          and corrected a few minor glitches. Is playable,
+          at least for my type of games.
+        - added a less obtrusive "info" sound for things like
+          game end etc.
+
 0.4  Mon May 31 03:08:17 CEST 2004
 	- the adventerous user might try to play games with
           the sample client now.
